@@ -1,100 +1,78 @@
 import streamlit as st
 import pandas as pd
+import streamlit_authenticator as stauth
 from carbeglice import calcular_insulina, definir_status, gerar_pdf
 from datetime import datetime
 
-# --- CONFIGURAÇÃO VISUAL ---
-st.set_page_config(page_title="BioCare Kids Pro", layout="wide")
+# --- CONFIGURAÇÃO DE LOGIN (SIMPLIFICADA) ---
+# Aqui definimos quem pode entrar no app
+nomes = ["Família Valente"]
+usuarios = ["admin"]
+senhas = ["admin123"] # Depois troque por uma de sua preferência
 
-# Inicializar configurações de tema no "cérebro" do app
-if "cor_primaria" not in st.session_state:
-    st.session_state.cor_primaria = "#FF4B4B"
-if "cor_fundo" not in st.session_state:
-    st.session_state.cor_fundo = "#FFFFFF"
+# Criptografia da senha (necessário para segurança)
+hashed_passwords = stauth.Hasher(senhas).generate()
 
-# Aplicar CSS Customizado para botões bonitos e degradês
-st.markdown(f"""
-    <style>
-    .stButton>button {{
-        width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        background: linear-gradient(45deg, {st.session_state.cor_primaria}, #ff8a8a);
-        color: white;
-        border: none;
-        font-weight: bold;
-        transition: 0.3s;
-    }}
-    .stButton>button:hover {{
-        transform: scale(1.02);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }}
-    .main {{
-        background-color: {st.session_state.cor_fundo};
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+authenticator = stauth.Authenticate(
+    {'usernames': {usuarios[0]: {'name': nomes[0], 'password': hashed_passwords[0]}}},
+    "glicemia_cookie", "signature_key", cookie_expiry_days=30
+)
 
-# --- CARREGAR DADOS ---
-try:
-    df_historico = pd.read_csv("dados_glicemia.csv")
-except:
-    df_historico = pd.DataFrame(columns=["Data", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
+# Renderiza a tela de login
+name, authentication_status, username = authenticator.login("Login", "main")
 
-try:
-    df_alimentos = pd.read_csv("alimentos.csv")
-except:
-    df_alimentos = pd.DataFrame({"Alimento": ["Manual"], "Carboidratos por Porção": [0], "Unidade": ["g"]})
+if authentication_status == False:
+    st.error("Usuário ou senha incorretos")
+elif authentication_status == None:
+    st.warning("Por favor, insira seu usuário e senha")
+elif authentication_status:
+    # --- SE O LOGIN DER CERTO, RODA O APP ABAIXO ---
 
-# --- BARRA LATERAL (MENU) ---
-with st.sidebar:
-    st.title("⚙️ Configurações")
-    aba_config = st.radio("Navegar para:", ["🏠 Home", "👤 Perfil & Temas", "🍎 Alimentos"])
-    st.divider()
-    if st.button("🚪 Sair (Logout)"):
-        st.info("Simulação de Logout efetuada.")
+    if "cor_primaria" not in st.session_state:
+        st.session_state.cor_primaria = "#007BFF"
+    if "cor_fundo" not in st.session_state:
+        st.session_state.cor_fundo = "#F8F9FA"
 
-# --- LÓGICA DE TELAS ---
-if aba_config == "🏠 Home":
-    st.title("📊 Painel de Controle")
-    tab1, tab2 = st.tabs(["📝 Registrar", "📜 Histórico"])
-    
-    with tab1:
+    # Estilo Visual (CSS)
+    st.markdown(f"""
+        <style>
+        .stButton>button {{
+            width: 100%;
+            border-radius: 12px;
+            background: linear-gradient(135deg, {st.session_state.cor_primaria}, #00c6ff);
+            color: white; font-weight: bold; border: none; height: 3.5em;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+
+    # BARRA LATERAL
+    with st.sidebar:
+        st.title(f"Bem-vindo, {name}")
+        aba = st.radio("Menu principal", ["🏠 Painel", "⚙️ Perfil e Temas", "🍎 Alimentos"])
+        st.divider()
+        authenticator.logout("Sair do Sistema", "sidebar")
+
+    # TELAS DO APP
+    if aba == "🏠 Painel":
+        st.title("📊 Controle de Glicemia")
+        # (Aqui entra o código das abas de registro que já fizemos)
+        t1, t2 = st.tabs(["📝 Registrar", "📜 Histórico"])
+        with t1:
+            st.info("Área de registro pronta para uso.")
+        with t2:
+            st.info("O histórico aparecerá aqui.")
+
+    elif aba == "⚙️ Perfil e Temas":
+        st.header("👤 Configurações de Perfil")
         col1, col2 = st.columns(2)
         with col1:
-            g_pre = st.number_input("Glicemia Antes", value=110)
-            alimento = st.selectbox("Escolha o Alimento", df_alimentos["Alimento"].tolist())
+            st.text_input("Nome da Criança", "Filha")
+            st.number_input("Idade", 7)
         with col2:
-            porcoes = st.number_input("Quantidade", min_value=0.1, value=1.0)
-            momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
-        
-        if st.button("Calcular e Salvar Registro"):
-            st.balloons() # Efeito visual de sucesso
-            st.success("Dados salvos com sucesso!")
+            st.session_state.cor_primaria = st.color_picker("Cor dos Botões", st.session_state.cor_primaria)
+            if st.button("Salvar Preferências"):
+                st.rerun()
 
-    with tab2:
-        st.dataframe(df_historico, use_container_width=True)
-
-elif aba_config == "👤 Perfil & Temas":
-    st.header("👤 Perfil do Usuário")
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        nome_pai = st.text_input("Nome do Responsável", "Pai/Mãe")
-        email_user = st.text_input("Email", "exemplo@email.com")
-    with col_p2:
-        nome_crianca = st.text_input("Nome da Criança", "Filha")
-        idade = st.number_input("Idade", value=7)
-
-    st.divider()
-    st.header("🎨 Personalização Visual")
-    c1, c2 = st.columns(2)
-    st.session_state.cor_primaria = c1.color_picker("Cor dos Botões (Destaque)", st.session_state.cor_primaria)
-    st.session_state.cor_fundo = c2.color_picker("Cor de Fundo do App", st.session_state.cor_fundo)
-    
-    if st.button("Aplicar Novo Tema"):
-        st.rerun()
-
-elif aba_config == "🍎 Alimentos":
-    st.header("🍎 Gestão de Alimentos")
-    # Código de cadastro de alimentos aqui...
-    st.write("Aqui você poderá editar sua tabela de carboidratos.")
+    elif aba == "🍎 Alimentos":
+        st.header("🍎 Banco de Alimentos")
+        st.write("Gerencie aqui os carboidratos da dieta.")
