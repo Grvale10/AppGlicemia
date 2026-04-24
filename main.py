@@ -38,41 +38,43 @@ if "tema_selecionado" not in st.session_state:
 
 cores = TEMAS[st.session_state.tema_selecionado]
 
-# --- CSS ULTRA-ESPECÍFICO (SEM FAIXAS NO MENU) ---
+# --- CSS REVISADO: SEM FAIXAS, APENAS DETALHES ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
     
-    /* Botões */
+    /* Botões: Cor sólida e arredondada */
     .stButton>button {{
-        width: 100%; border-radius: 12px; height: 3.5em;
-        background-color: {cores['primaria']};
-        color: white; border: none; font-weight: bold; transition: 0.3s;
-    }}
-    
-    /* REMOVER FAIXA DO MENU E PINTAR APENAS O CÍRCULO */
-    /* Remove o fundo cinza/colorido de quando selecionado */
-    div[data-testid="stRadio"] label {{
-        background-color: transparent !important;
+        width: 100%; border-radius: 10px; height: 3em;
+        background-color: {cores['primaria']} !important;
+        color: white !important; border: none; font-weight: bold;
     }}
 
-    /* Estilo do Círculo de Seleção */
-    div[data-testid="stRadio"] div[role="radiogroup"] div[data-baseweb="radio"] > div:first-child {{
+    /* RADIO BUTTONS (MENU LATERAL) */
+    /* Remove qualquer cor de fundo das labels (evita as faixas vermelhas das fotos) */
+    div[data-testid="stRadio"] label {{
+        background-color: transparent !important;
+        border: none !important;
+    }}
+    
+    /* Cor do texto do item selecionado */
+    div[data-testid="stRadio"] label[data-baseweb="radio"] div:nth-child(2) p {{
+        color: {cores['primaria']} !important;
+        font-weight: bold !important;
+    }}
+
+    /* Cor do círculo de seleção (bolinha) */
+    div[data-testid="stRadio"] div[data-baseweb="radio"] div:first-child {{
         border-color: {cores['primaria']} !important;
     }}
     
-    /* Pintar a bolinha interna de preenchimento */
+    /* Cor do preenchimento da bolinha selecionada */
     div[data-testid="stRadio"] input[type="radio"]:checked + div {{
         background-color: {cores['primaria']} !important;
     }}
 
-    /* Cor do texto do item selecionado no menu */
-    div[data-testid="stRadio"] label[data-baseweb="radio"] div:nth-child(2) p {{
-        color: {cores['texto']} !important;
-    }}
-
-    /* Ajuste de Abas */
-    button[data-baseweb="tab"]:hover {{ color: {cores['primaria']} !important; }}
+    /* Tabs (Abas) */
+    button[data-baseweb="tab"] {{ color: {cores['texto']} !important; }}
     button[aria-selected="true"] {{ 
         color: {cores['primaria']} !important;
         border-bottom-color: {cores['primaria']} !important;
@@ -94,7 +96,7 @@ except:
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.title("📟 BioCare Kids")
-    # Menu lateral sem preenchimento de fundo
+    # Menu lateral 
     aba_config = st.radio("Navegar para:", ["🏠 Home", "📌 Pendentes", "📜 Histórico", "⚙️ Perfil & Temas", "🍎 Alimentos"])
     st.divider()
 
@@ -144,10 +146,9 @@ elif aba_config == "📌 Pendentes":
     else:
         st.info("Nada pendente.")
 
-# CONTEÚDO RESTAURADO ABAIXO:
 elif aba_config == "⚙️ Perfil & Temas":
     st.header("⚙️ Configurações de Aparência")
-    st.subheader("🎨 Escolha um Tema Profissional")
+    st.subheader("🎨 Escolha um Tema")
     
     escolha = st.selectbox(
         "Selecione uma paleta de cores para o app:", 
@@ -163,14 +164,14 @@ elif aba_config == "⚙️ Perfil & Temas":
     st.subheader("👤 Dados da Criança")
     c1, c2 = st.columns(2)
     with c1:
-        st.text_input("Nome da Criança", "Minha Filha")
+        st.text_input("Nome", "Minha Filha")
     with c2:
         st.number_input("Idade", value=5)
 
 elif aba_config == "🍎 Alimentos":
     st.header("🍎 Gestão de Alimentos")
     st.dataframe(df_alimentos, use_container_width=True)
-    with st.expander("➕ Adicionar Novo Alimento"):
+    with st.expander("➕ Adicionar Novo"):
         n = st.text_input("Nome")
         c = st.number_input("Carbo (g)", min_value=0)
         u = st.text_input("Unidade")
@@ -178,5 +179,4 @@ elif aba_config == "🍎 Alimentos":
             novo = {"Alimento": n, "Carboidratos por Porção": c, "Unidade": u}
             df_alimentos = pd.concat([df_alimentos, pd.DataFrame([novo])], ignore_index=True)
             df_alimentos.to_csv("alimentos.csv", index=False)
-            st.success("Adicionado!")
             st.rerun()
