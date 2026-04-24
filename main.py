@@ -4,27 +4,35 @@ import streamlit_authenticator as stauth
 from carbeglice import calcular_insulina, definir_status, gerar_pdf
 from datetime import datetime
 
-# --- 1. CONFIGURAÇÃO DE LOGIN ---
-credentials = {
-    "usernames": {
-        "admin": {
-            "name": "Familia Valente",
-            "password": "admin123" 
+# --- 1. CONFIGURAÇÃO DE LOGIN (VERSÃO 2026) ---
+if 'credentials' not in st.session_state:
+    st.session_state['credentials'] = {
+        "usernames": {
+            "admin": {
+                "name": "Familia Valente",
+                "password": "admin123" 
+            }
         }
     }
-}
 
+# O segredo aqui é não passar mais o "main" ou "form_name"
 authenticator = stauth.Authenticate(
-    credentials,
+    st.session_state['credentials'],
     "glicemia_cookie",
     "signature_key",
     cookie_expiry_days=30
 )
 
-# Renderiza a tela de login
-name, authentication_status, username = authenticator.login("Acesso Restrito", "main")
+# LOGIN CORRIGIDO: Agora usamos apenas o título
+# A biblioteca agora entende automaticamente onde colocar o formulário
+login_result = authenticator.login("Acesso Restrito")
 
-# --- 2. VERIFICAÇÃO DE STATUS DE LOGIN ---
+# A nova versão retorna os dados de forma diferente, vamos capturar:
+authentication_status = st.session_state.get("authentication_status")
+name = st.session_state.get("name")
+username = st.session_state.get("username")
+
+# --- 2. VERIFICAÇÃO DE STATUS ---
 if authentication_status == False:
     st.error("Usuário ou senha incorretos")
 elif authentication_status == None:
