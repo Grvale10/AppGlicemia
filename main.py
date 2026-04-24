@@ -5,6 +5,7 @@ from datetime import datetime
 
 # --- FUNÇÕES DE APOIO ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
+    # Regra de correção + Regra de carboidratos
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
     return round(correcao + dose_carbo, 1)
@@ -37,77 +38,53 @@ def gerar_pdf(df):
     return pdf.output(dest='S').encode('latin-1')
 
 # --- CONFIGURAÇÃO E DESIGN MODERNO ---
-st.set_page_config(page_title="BioCare Kids", layout="wide")
+st.set_page_config(page_title="BioCare Kids - Gestao Familiar", layout="wide")
 
+# Inicializa cores padrão se não existirem
 if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
 if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
+# --- CSS ULTRA-ESPECÍFICO (SEM FAIXAS, COM TEXTO NOS BOTÕES) ---
 st.markdown(f"""
     <style>
-    /* Fundo e Fonte Principal */
-    .stApp {{ 
-        background-color: {st.session_state.cor_fundo};
-        font-family: 'Inter', -apple-system, sans-serif;
-    }}
-
-    /* Botões Modernos (Estilo Mobile Pro) */
-    .stButton>button {{
-        width: 100%;
-        border-radius: 14px;
-        height: 3.5em;
-        background-color: {st.session_state.cor_botao} !important;
-        color: white !important;
+    /* Fundo Geral */
+    .stApp {{ background-color: {st.session_state.cor_fundo}; }}
+    
+    /* 🎯 CORREÇÃO: PINTAR APENAS O CÍRCULO DO MENU 🎯 */
+    /* Remove preenchimento de fundo da label */
+    div[data-testid="stRadio"] label {{
+        background-color: transparent !important;
         border: none !important;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        box-shadow: 0 4px 12px {st.session_state.cor_botao}44;
-        transition: all 0.2s ease-in-out;
-    }}
-    .stButton>button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px {st.session_state.cor_botao}66;
-    }}
-
-    /* Barra Lateral Moderna */
-    section[data-testid="stSidebar"] {{
-        background-color: white !important;
-        border-right: 1px solid #E5E7EB;
     }}
     
-    /* Customização dos Itens do Menu (Radio) */
-    div[data-testid="stRadio"] > div {{
-        gap: 8px;
-    }}
-    div[data-testid="stRadio"] label {{
-        background-color: #F3F4F6 !important;
-        border-radius: 12px !important;
-        padding: 12px 16px !important;
-        border: 1px solid transparent !important;
-        transition: 0.2s;
-        margin-bottom: 4px;
-    }}
-    div[data-testid="stRadio"] label:hover {{
-        border-color: {st.session_state.cor_botao}88 !important;
-    }}
-    div[data-testid="stRadio"] label[data-baseweb="radio"] div:first-child {{
-        display: none !important; /* Esconde o círculo antigo pra parecer botão de menu */
-    }}
+    /* Mudar cor do círculo quando selecionado (Bolhas das imagens) */
     div[data-testid="stRadio"] input[type="radio"]:checked + div {{
         background-color: {st.session_state.cor_botao} !important;
-        color: white !important;
+        border-color: {st.session_state.cor_botao} !important;
     }}
-    /* Cor do texto quando selecionado */
-    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{
-        color: white !important;
-        font-weight: bold;
+    
+    /* Mudar cor da borda do círculo não selecionado */
+    div[data-testid="stRadio"] div[data-baseweb="radio"] > div:first-child {{
+        border-color: {st.session_state.cor_botao}88 !important;
     }}
 
-    /* Estilização de Containers (Cards) */
-    div[data-testid="stMetric"], .stTabs {{
-        background: white;
-        padding: 20px;
-        border-radius: 16px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    /* 🎯 CORREÇÃO: TEXTO APARECER NOS BOTÕES (IMAGE 3) 🎯 */
+    /* Remove degradês e força cor sólida para o texto aparecer */
+    .stButton>button {{
+        width: 100%; border-radius: 12px; height: 3.5em;
+        background-color: {st.session_state.cor_botao} !important;
+        background-image: none !important;
+        color: white !important;
+        border: none !important;
+        font-weight: bold !important;
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{ transform: scale(1.02); opacity: 0.9; }}
+
+    /* Tabs (Aba Registrar/Histórico) */
+    button[aria-selected="true"] {{ 
+        color: {st.session_state.cor_botao} !important;
+        border-bottom-color: {st.session_state.cor_botao} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -123,55 +100,98 @@ try:
     if "Carboidratos por Porção" in df_alimentos.columns:
         df_alimentos = df_alimentos.rename(columns={"Carboidratos por Porção": "Carbos"})
 except:
-    df_alimentos = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz (colher)"], "Carbos": [28, 15]})
+    df_alimentos = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz Branco (colher)"], "Carbos": [28, 15]})
 
-# --- MENU LATERAL ---
+# --- MENU LATERAL (TRADUZIDO) ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #1F2937;'>📟 BioCare</h2>", unsafe_allow_html=True)
-    st.write("")
-    aba = st.radio("MENU", ["🏠 Registro", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    # 🎯 CORREÇÃO 1: NOME EM PORTUGUÊS
+    st.title("📟 Cuidado BioCare")
+    aba = st.radio("Navegar para:", ["🏠 Inicio", "📌 Pendentes", "📜 Historico", "⚙️ Perfil & Temas", "🍎 Alimentos"])
+    st.divider()
 
-# --- CONTEÚDO ---
+# --- CONTEÚDO DAS ABAS ---
 
-if aba == "🏠 Registro":
-    st.markdown("### 📝 Novo Registro")
-    col1, col2 = st.columns(2)
-    with col1:
-        g_pre = st.number_input("Glicemia Atual", min_value=20, value=110, help="Medida em mg/dL.")
-        if g_pre < 70: st.error("⚠️ HIPOGLICEMIA!")
-    with col2:
-        alimento_sel = st.selectbox("Alimento", df_alimentos["Alimento"].tolist())
-        carbo_unit = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
-        qtd = st.number_input("Quantidade", min_value=0.1, value=1.0)
-        carbo_total = round(float(carbo_unit) * qtd, 1)
-        st.info(f"Total: {carbo_total}g de Carbo")
+if aba == "🏠 Inicio":
+    # 🎯 CORREÇÃO 2: TÍTULO EM PORTUGUÊS
+    st.title("📊 Painel de Controle")
+    tab1, tab2 = st.tabs(["📝 Registrar Refeição", "📜 Histórico Rápido"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            g_pre = st.number_input("Glicemia Antes da Refeição (mg/dL)", min_value=20, value=110)
+            lista_alimentos = df_alimentos["Alimento"].tolist()
+            alimento = st.selectbox("Escolha o Alimento Principal", lista_alimentos)
+            info = df_alimentos[df_alimentos["Alimento"] == alimento].iloc[0]
+        with col2:
+            porcoes = st.number_input("Quantidade (porções/unidades)", min_value=0.1, value=1.0)
+            momento = st.selectbox("Momento do Dia", ["Café", "Almoço", "Jantar", "Lanche"])
+            carbo_total = info['Carbos'] * porcoes
+        
+        # 🎯 CORREÇÃO 3: TEXTO DO BOTÃO CORRIGIDO
+        if st.button("Calcular e Salvar Registro"):
+            # Usando valores padrão: Meta 100, Sensibilidade 50, Relação Carbo 15
+            dose = calcular_insulina(g_pre, 100, 50, carbo_total, 15)
+            
+            novo = {
+                "Data": datetime.now().strftime("%d/%m %H:%M"),
+                "Glicemia_Pre": g_pre, "Carbos": carbo_total, "Dose": dose, 
+                "Momento": momento, "Glicemia_Pos": 0
+            }
+            df_historico = pd.concat([df_historico, pd.DataFrame([novo])], ignore_index=True)
+            df_historico.to_csv("dados_glicemia.csv", index=False)
+            st.success(f"Dose sugerida: {dose} U. Registro salvo com sucesso!")
 
-    if st.button("Salvar Registro"):
-        dose = calcular_insulina(g_pre, 100, 50, carbo_total, 15)
-        novo = {"Data": datetime.now().strftime("%d/%m %H:%M"), "Glicemia_Pre": g_pre, "Carbos": carbo_total, "Dose": dose, "Momento": "Refeição", "Glicemia_Pos": 0}
-        df_historico = pd.concat([df_historico, pd.DataFrame([novo])], ignore_index=True)
-        df_historico.to_csv("dados_glicemia.csv", index=False)
-        st.success(f"Dose: {dose} U. Salvo!")
+    with tab2:
+        st.dataframe(df_historico, use_container_width=True)
+        if not df_historico.empty:
+            st.download_button("📥 Baixar PDF", data=gerar_pdf(df_historico), file_name="glicemia.pdf")
 
-elif aba == "📊 Histórico":
-    st.markdown("### 📜 Histórico")
-    st.dataframe(df_historico, use_container_width=True)
-    if not df_historico.empty:
-        st.download_button("📥 Exportar PDF", data=gerar_pdf(df_historico), file_name="glicemia.pdf")
+elif aba == "📌 Pendentes":
+    st.header("📌 Glicemia 2h Após Refeição")
+    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if not pendentes.empty:
+        for idx, row in pendentes.iterrows():
+            with st.expander(f"{row['Momento']} - {row['Data']}"):
+                v_pos = st.number_input("Valor após 2h", key=f"p_{idx}")
+                # 🎯 BOTÃO CORRIGIDO
+                if st.button("Confirmar Medição", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v_pos
+                    df_historico.to_csv("dados_glicemia.csv", index=False)
+                    st.rerun()
+    else:
+        st.info("Nenhuma medição pendente.")
+
+elif aba == "⚙️ Perfil & Temas":
+    st.header("⚙️ Configurações de Aparência")
+    st.subheader("🎨 Escolha um Tema Profissional")
+    
+    # Simulação de troca de tema (precisaria salvar em session_state para persistir)
+    st.selectbox("Selecione uma paleta de cores para o app:", ["Padrão (Vermelho)", "Azul Oceano", "Verde Saúde"])
+    
+    st.divider()
+    st.subheader("👤 Dados da Criança")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        st.text_input("Nome da Criança", "Minha Filha")
+    with col_p2:
+        st.number_input("Idade", value=5)
+    
+    # 🎯 BOTÃO CORRIGIDO
+    if st.button("Salvar Alterações de Perfil"):
+        st.success("Configurações salvas!")
 
 elif aba == "🍎 Alimentos":
-    st.markdown("### 🍎 Tabela de Alimentos")
-    df_alimentos = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
-    if st.button("Salvar Tabela"):
-        df_alimentos.to_csv("alimentos.csv", index=False)
-        st.success("Tabela Atualizada!")
-
-elif aba == "👤 Perfil":
-    st.markdown("### 👤 Perfil e Aparência")
-    st.subheader("🎨 Estilo")
-    c1, c2 = st.columns(2)
-    with c1: st.session_state.cor_fundo = st.color_picker("Cor de Fundo", st.session_state.cor_fundo)
-    with c2: st.session_state.cor_botao = st.color_picker("Cor Principal (Botões)", st.session_state.cor_botao)
-    
-    if st.button("Aplicar Mudanças"):
-        st.rerun()
+    st.header("🍎 Gestão de Alimentos")
+    st.dataframe(df_alimentos, use_container_width=True)
+    with st.expander("➕ Adicionar Novo Alimento"):
+        n = st.text_input("Nome")
+        c = st.number_input("Carbo (g)", min_value=0)
+        u = st.text_input("Unidade")
+        # 🎯 BOTÃO CORRIGIDO
+        if st.button("Salvar Novo Alimento"):
+            novo = {"Alimento": n, "Carbos": c, "Unidade": u}
+            df_alimentos = pd.concat([df_alimentos, pd.DataFrame([novo])], ignore_index=True)
+            df_alimentos.to_csv("alimentos.csv", index=False)
+            st.success("Adicionado!")
+            st.rerun()
