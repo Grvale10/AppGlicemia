@@ -11,7 +11,7 @@ if "sacola_refeicao" not in st.session_state: st.session_state.sacola_refeicao =
 
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
 
-# --- 2. FUNÇÕES TÉCNICAS (PDF E CÁLCULO) ---
+# --- 2. FUNÇÕES TÉCNICAS (MANTIDAS DA 8.3) ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
@@ -21,61 +21,45 @@ def gerar_pdf_detalhado(df_selecionado, df_pacs):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     if df_selecionado.empty: return b""
-    
     pacientes_no_hist = df_selecionado["Paciente"].unique()
     for p_nome in pacientes_no_hist:
         pdf.add_page()
         pdf.set_font("Arial", "B", 20); pdf.set_text_color(99, 102, 241)
         pdf.cell(0, 15, f"Relatorio de Controle Glicemico - {p_nome}", ln=True, align='C')
-        pdf.set_font("Arial", "I", 9); pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 5, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align='R')
         pdf.ln(5)
-        
-        p_info = df_pacs[df_pacs["Nome"] == p_nome]
-        if not p_info.empty:
-            p_info = p_info.iloc[0]
-            pdf.set_fill_color(245, 247, 255); pdf.set_font("Arial", "B", 11)
-            pdf.cell(0, 10, "  Informacoes do Paciente", ln=True, fill=True)
-            pdf.set_font("Arial", "", 10)
-            pdf.cell(70, 8, f" CPF: {p_info.get('CPF', '-')}")
-            pdf.cell(70, 8, f" Sangue: {p_info.get('Sangue', '-')}")
-            pdf.cell(0, 8, f" Plano: {p_info.get('Tipo_Plano', 'N/A')}", ln=True)
-            pdf.ln(5)
-            
         w = {"data": 35, "refeicao": 65, "pre": 35, "carbo": 35, "dose": 30, "pos": 35}
         pdf.set_font("Arial", "B", 10); pdf.set_fill_color(99, 102, 241); pdf.set_text_color(255, 255, 255)
         pdf.cell(w["data"], 10, " Data/Hora", border=1, fill=True, align='C')
-        pdf.cell(w["refeicao"], 10, " Alimentos/Refeicao", border=1, fill=True, align='C')
-        pdf.cell(w["pre"], 10, " Glicemia Pre", border=1, fill=True, align='C')
-        pdf.cell(w["carbo"], 10, " Carbos (g)", border=1, fill=True, align='C')
-        pdf.cell(w["dose"], 10, " Dose (U)", border=1, fill=True, align='C')
-        pdf.cell(w["pos"], 10, " Glicemia Pos", border=1, fill=True, align='C', ln=True)
-        
+        pdf.cell(w["refeicao"], 10, " Detalhes", border=1, fill=True, align='C')
+        pdf.cell(w["pre"], 10, " Pre", border=1, fill=True, align='C')
+        pdf.cell(w["carbo"], 10, " Carbos", border=1, fill=True, align='C')
+        pdf.cell(w["dose"], 10, " Dose", border=1, fill=True, align='C')
+        pdf.cell(w["pos"], 10, " Pos", border=1, fill=True, align='C', ln=True)
         pdf.set_font("Arial", "", 9); pdf.set_text_color(0, 0, 0)
-        dados_p = df_selecionado[df_selecionado["Paciente"] == p_nome]
         zebra = False
-        for _, row in dados_p.iterrows():
+        for _, row in df_selecionado[df_selecionado["Paciente"] == p_nome].iterrows():
             pdf.set_fill_color(245, 245, 245) if zebra else pdf.set_fill_color(255, 255, 255)
             pdf.cell(w["data"], 9, f" {row['Data']}", border=1, fill=True)
-            # Truncar texto longo de alimentos para não vazar a célula no PDF
-            texto_refeicao = str(row.get('Momento', 'Outro'))[:40]
-            pdf.cell(w["refeicao"], 9, f" {texto_refeicao}", border=1, fill=True)
+            pdf.cell(w["refeicao"], 9, f" {str(row.get('Momento', ''))[:40]}", border=1, fill=True)
             pdf.cell(w["pre"], 9, f"{row['Glicemia_Pre']}", border=1, fill=True, align='C')
             pdf.cell(w["carbo"], 9, f"{row['Carbos']}", border=1, fill=True, align='C')
             pdf.cell(w["dose"], 9, f"{row['Dose']}", border=1, fill=True, align='C')
             g_v = row.get('Glicemia_Pos', 0)
             pdf.cell(w["pos"], 9, f"{g_v}" if g_v != 0 else "-", border=1, fill=True, align='C', ln=True)
             zebra = not zebra
-            
     try: return bytes(pdf.output())
     except: return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. DESIGN CSS ---
+# --- 3. DESIGN CSS (TRAVA ANTI-NONE) ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
-    .stButton>button {{ width: 100%; border-radius: 14px; background-color: {st.session_state.cor_botao} !important; color: white !important; font-weight: bold; border: none; }}
-    .card-refeicao {{ background-color: white; padding: 12px; border-radius: 12px; border: 1px solid #E5E7EB; margin-bottom: 5px; font-size: 14px; }}
+    /* Esconde qualquer log de saída de widgets que o Streamlit tente mostrar */
+    .stAlert + div {{ display: none !important; }}
+    div[data-testid="stMarkdownContainer"] > p:contains("None") {{ display: none !important; }}
+    
+    .stButton>button {{ width: 100%; border-radius: 14px; background-color: {st.session_state.cor_botao} !important; color: white !important; font-weight: bold; }}
+    .card-refeicao {{ background-color: white; padding: 12px; border-radius: 12px; border: 1px solid #E5E7EB; margin-bottom: 5px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -107,7 +91,6 @@ if aba == "🏠 Início":
             with c1: pac_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
             with c2: refeicao_tipo = st.selectbox("Momento", ["Café da Manhã", "Almoço", "Jantar", "Lanche", "Ceia", "Pré-Treino", "Outro"])
             with c3: g_pre = st.number_input("Glicemia Pré (mg/dL)", min_value=20, value=110)
-            
             st.divider()
             col_i1, col_i2 = st.columns([3, 1])
             with col_i1:
@@ -117,13 +100,10 @@ if aba == "🏠 Início":
                     val_c = lin["Carbos"]; uni_a = lin["Unidade"]
                 except: val_c = 0.0; uni_a = "un"
             with col_i2: qtd = st.number_input(f"Qtd ({uni_a})", min_value=0.1, value=1.0)
-            
             if st.button("➕ Adicionar ao Prato"):
                 st.session_state.sacola_refeicao.append({"Alimento": alimento_sel, "Qtd": qtd, "Carbos": round(float(val_c) * qtd, 1), "Unidade": uni_a})
                 st.rerun()
-
             if st.session_state.sacola_refeicao:
-                st.markdown(f"### 📋 Prato: {refeicao_tipo}")
                 total_c = 0.0
                 alimentos_lista = []
                 for idx, item in enumerate(st.session_state.sacola_refeicao):
@@ -133,57 +113,41 @@ if aba == "🏠 Início":
                         total_c += item['Carbos']
                         alimentos_lista.append(f"{item['Alimento']} ({item['Qtd']} {item['Unidade']})")
                     with dl_c:
-                        if st.button("🗑️", key=f"del_{idx}"):
-                            st.session_state.sacola_refeicao.pop(idx); st.rerun()
-                
-                st.metric("Total Carboidratos", f"{round(total_c, 1)}g")
+                        if st.button("🗑️", key=f"del_{idx}"): st.session_state.sacola_refeicao.pop(idx); st.rerun()
                 if st.button("💉 Calcular e Salvar"):
                     dose = calcular_insulina(g_pre, 100, 50, total_c, 15)
-                    detalhe_refeicao = " + ".join(alimentos_lista)
-                    novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Paciente": pac_sel, "Glicemia_Pre": g_pre, "Carbos": round(total_c, 1), "Dose": dose, "Momento": detalhe_refeicao, "Glicemia_Pos": 0}])
+                    detalhe = " + ".join(alimentos_lista)
+                    novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Paciente": pac_sel, "Glicemia_Pre": g_pre, "Carbos": round(total_c, 1), "Dose": dose, "Momento": detalhe, "Glicemia_Pos": 0}])
                     df_historico = pd.concat([df_historico, novo], ignore_index=True); df_historico.to_csv("dados_glicemia.csv", index=False)
                     st.session_state.sacola_refeicao = []; st.success(f"Salvo! Dose: {dose} U"); st.balloons()
 
 elif aba == "📊 Histórico":
     st.header("📊 Histórico e Exportação")
     if not df_historico.empty:
-        # 1. Crie o dataframe de seleção
-        df_selecao = df_historico.copy()
-        df_selecao.insert(0, "Download?", False)
+        # Criamos um container para a tabela para controlar o CSS
+        with st.container():
+            df_selecao = df_historico.copy()
+            df_selecao.insert(0, "Download?", False)
+            
+            # Forçamos o retorno para uma variável e usamos KEY fixa
+            df_editado = st.data_editor(
+                df_selecao,
+                column_config={"Download?": st.column_config.CheckboxColumn("Download?", default=False)},
+                disabled=[col for col in df_selecao.columns if col != "Download?"],
+                hide_index=True,
+                use_container_width=True,
+                key="editor_final_pc"
+            )
         
-        # 2. RENDERIZAÇÃO LIMPA (Sem retorno na tela)
-        # Usamos uma 'key' para o widget e não imprimimos o resultado da função diretamente
-        df_editado = st.data_editor(
-            df_selecao,
-            column_config={
-                "Download?": st.column_config.CheckboxColumn("Download?", default=False),
-            },
-            disabled=[col for col in df_selecao.columns if col != "Download?"],
-            hide_index=True,
-            use_container_width=True,
-            key="tabela_historico_oficial" # Esta KEY mata o 'None'
-        )
-        
-        # 3. FILTRAGEM
         selecionados = df_editado[df_editado["Download?"] == True]
-        
         if not selecionados.empty:
-            st.markdown(f"✅ **{len(selecionados)} medições selecionadas.**")
-            try:
-                # Remove a coluna visual de seleção para o PDF
-                df_limpo_pdf = selecionados.drop(columns=["Download?"])
-                pdf_bytes = gerar_pdf_detalhado(df_limpo_pdf, df_pacientes)
-                st.download_button(
-                    label="📥 Gerar e Baixar PDF",
-                    data=pdf_bytes,
-                    file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e: st.error(f"Erro no PDF: {e}")
-        else:
-            st.info("💡 Use os quadradinhos acima para escolher o que baixar.")
+            st.success(f"✅ {len(selecionados)} medições selecionadas.")
+            pdf_bytes = gerar_pdf_detalhado(selecionados.drop(columns=["Download?"]), df_pacientes)
+            st.download_button(label="📥 Baixar PDF", data=pdf_bytes, file_name="Relatorio.pdf", mime="application/pdf")
+    else:
+        st.info("💡 Use os quadradinhos acima para escolher o que baixar.")
 
-# --- OUTRAS ABAS MANTIDAS ---
+# --- OUTRAS ABAS (Pacientes, Alimentos, Pendentes, Perfil) ---
 elif aba == "👥 Pacientes":
     st.header("👥 Pacientes")
     t1, t2 = st.tabs(["➕ Novo", "✏️ Gerenciar"])
@@ -207,7 +171,7 @@ elif aba == "🍎 Alimentos":
     st.header("🍎 Cardápio")
     with st.form("novo_a"):
         c1, c2 = st.columns(2)
-        with c1: n_a = st.text_input("Nome"); u_a = st.text_input("Unidade (ex: colher)"); g_a = st.number_input("Peso (g)")
+        with c1: n_a = st.text_input("Nome"); u_a = st.text_input("Unidade"); g_a = st.number_input("Peso (g)")
         with c2: c_a = st.number_input("Carbos (g)"); p_a = st.number_input("Prot (g)"); f_a = st.number_input("Gord (g)")
         if st.form_submit_button("Salvar"):
             if n_a:
