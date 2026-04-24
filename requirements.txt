@@ -1,5 +1,3 @@
 streamlit
 pandas
 fpdf2
-google-auth
-st-google-auth
