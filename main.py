@@ -10,7 +10,7 @@ if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
 
-# --- 2. FUNÇÕES TÉCNICAS (PDF E CÁLCULOS) ---
+# --- 2. FUNÇÕES TÉCNICAS ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
@@ -63,7 +63,6 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
             pdf.cell(25, 8, f"{row['Glicemia_Pre']} mg/dL", border=1)
             pdf.cell(25, 8, f"{row['Carbos']}g", border=1)
             pdf.cell(25, 8, f"{row['Dose']} U", border=1)
-            # Proteção para exibir a glicemia pós ou traço
             g_val = row.get('Glicemia_Pos', 0)
             pdf.cell(25, 8, f"{g_val if g_val != 0 else '-'}", border=1, ln=True)
     return pdf.output(dest='S').encode('latin-1')
@@ -92,13 +91,16 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. BANCO DE DADOS (VACINA CONTRA O KEYERROR) ---
+# --- 4. BANCO DE DADOS (ATUALIZADO COM NOVAS COLUNAS DE ALIMENTOS) ---
 def iniciar_banco():
     if os.path.exists("alimentos.csv"):
         df_a = pd.read_csv("alimentos.csv")
         df_a.columns = df_a.columns.str.strip()
+        # Vacina para colunas nutricionais
+        for col, val in {"Carbos": 0.0, "Proteina": 0.0, "Gordura": 0.0, "Gramas": 0.0, "Unidade": "un"}.items():
+            if col not in df_a.columns: df_a[col] = val
     else:
-        df_a = pd.DataFrame({"Alimento": ["Pão", "Arroz"], "Carbos": [28.0, 15.0]})
+        df_a = pd.DataFrame(columns=["Alimento", "Carbos", "Proteina", "Gordura", "Gramas", "Unidade"])
     
     if os.path.exists("pacientes.csv"):
         df_p = pd.read_csv("pacientes.csv")
@@ -107,10 +109,7 @@ def iniciar_banco():
 
     if os.path.exists("dados_glicemia.csv"):
         df_h = pd.read_csv("dados_glicemia.csv")
-        df_h.columns = df_h.columns.str.strip()
-        # VACINA: Se a coluna Glicemia_Pos não existir no arquivo antigo, cria ela agora
-        if "Glicemia_Pos" not in df_h.columns:
-            df_h["Glicemia_Pos"] = 0
+        if "Glicemia_Pos" not in df_h.columns: df_h["Glicemia_Pos"] = 0
     else:
         df_h = pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
     
@@ -137,11 +136,15 @@ if aba == "🏠 Início":
                 g_pre = st.number_input("Glicemia Atual", min_value=20, value=110)
             with col2:
                 alimento_sel = st.selectbox("O que vai comer?", df_alimentos["Alimento"].tolist())
+                # Busca carboidratos por unidade
                 try:
-                    val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
+                    linha_a = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel].iloc[0]
+                    val_c = linha_a["Carbos"]
+                    uni_a = linha_a["Unidade"]
                 except:
-                    val_c = 0.0
-                qtd = st.number_input("Porção", min_value=0.1, value=1.0)
+                    val_c = 0.0; uni_a = "un"
+                
+                qtd = st.number_input(f"Quantidade ({uni_a})", min_value=0.1, value=1.0)
             
             total_c = round(float(val_c) * qtd, 1)
             st.metric("Total de Carboidratos", f"{total_c}g")
@@ -152,38 +155,43 @@ if aba == "🏠 Início":
                 df_historico.to_csv("dados_glicemia.csv", index=False)
                 st.success(f"Dose sugerida: {dose} U")
 
-elif aba == "📊 Histórico":
-    st.header("📜 Histórico")
-    if not df_historico.empty:
-        pac_filtro = st.multiselect("Filtrar por Paciente", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
-        df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
-        st.dataframe(df_filtrado, use_container_width=True)
-        pdf_data = gerar_pdf_detalhado(df_filtrado, df_pacientes)
-        st.download_button("📥 Baixar Relatório Médico (PDF)", data=pdf_data, file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf", mime="application/pdf")
-    else:
-        st.info("Sem registros.")
+elif aba == "🍎 Alimentos":
+    st.header("🍎 Cardápio Detalhado")
+    
+    with st.form("novo_alimento_detalhado", clear_on_submit=True):
+        st.subheader("➕ Adicionar Novo Item")
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            n_a = st.text_input("Nome do Alimento", placeholder="Ex: Arroz Integral")
+            u_a = st.text_input("Unidade de Medida", placeholder="Ex: colher, ml, xícara, un")
+            g_a = st.number_input("Peso da porção (g)", min_value=0.0, step=0.1)
+        with col_a2:
+            c_a = st.number_input("Carboidratos (g)", min_value=0.0, step=0.1)
+            p_a = st.number_input("Proteína (g)", min_value=0.0, step=0.1)
+            f_a = st.number_input("Gordura (g)", min_value=0.0, step=0.1)
+            
+        if st.form_submit_button("Salvar no Cardápio"):
+            if n_a:
+                novo_item = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Proteina": p_a, "Gordura": f_a, "Gramas": g_a, "Unidade": u_a}])
+                df_alimentos = pd.concat([df_alimentos, novo_item], ignore_index=True)
+                df_alimentos.to_csv("alimentos.csv", index=False)
+                st.success(f"{n_a} adicionado!")
+                st.rerun()
 
-elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós-Refeição")
-    # Agora a coluna Glicemia_Pos é garantida pela função iniciar_banco
-    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
-    if not pendentes.empty:
-        for idx, row in pendentes.iterrows():
-            with st.expander(f"{row['Paciente']} - {row['Data']}"):
-                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}")
-                if st.button("Confirmar", key=f"b_{idx}"):
-                    df_historico.at[idx, "Glicemia_Pos"] = v_pos
-                    df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.rerun()
-    else:
-        st.info("Nada pendente.")
+    st.divider()
+    st.subheader("📋 Lista de Alimentos")
+    # Editor de dados permitindo editar as novas colunas
+    df_ed = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+    if st.button("💾 Salvar Alterações na Tabela"):
+        df_ed.to_csv("alimentos.csv", index=False)
+        st.success("Tabela atualizada com sucesso!")
 
+# --- Outras abas permanecem conforme Código Base 5.1 ---
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
     aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
     lista_tipos_sangue = ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
     lista_planos = ["Particular", "SUS", "Outro"]
-
     with aba_p[0]:
         with st.form("add_pac"):
             c1, c2 = st.columns(2)
@@ -193,7 +201,6 @@ elif aba == "👥 Pacientes":
                 if n:
                     np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": detalhe_plano, "Tipo_Plano": tp_plano, "SUS": ""}])
                     df_pacientes = pd.concat([df_pacientes, np], ignore_index=True); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
-
     with aba_p[1]:
         if not df_pacientes.empty:
             edit_p = st.selectbox("Selecionar Paciente", df_pacientes["Nome"].tolist())
@@ -201,17 +208,26 @@ elif aba == "👥 Pacientes":
             if st.button("🗑️ Remover Paciente"):
                 df_pacientes = df_pacientes.drop(idx); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
 
-elif aba == "🍎 Alimentos":
-    st.header("🍎 Cardápio")
-    with st.form("novo_alimento"):
-        c1, c2 = st.columns([2, 1])
-        with c1: n_a = st.text_input("Nome do Alimento")
-        with c2: c_a = st.number_input("Carbos", min_value=0.0)
-        if st.form_submit_button("Salvar"):
-            if n_a:
-                ni = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a}])
-                df_alimentos = pd.concat([df_alimentos, ni], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False); st.rerun()
-    st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+elif aba == "📊 Histórico":
+    st.header("📜 Histórico")
+    if not df_historico.empty:
+        pac_filtro = st.multiselect("Filtrar por Paciente", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
+        df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
+        st.dataframe(df_filtrado, use_container_width=True)
+        pdf_data = gerar_pdf_detalhado(df_filtrado, df_pacientes)
+        st.download_button("📥 Baixar Relatório Médico (PDF)", data=pdf_data, file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf", mime="application/pdf")
+    else: st.info("Sem registros.")
+
+elif aba == "📌 Pendentes":
+    st.header("📌 Glicemia Pós-Refeição")
+    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if not pendentes.empty:
+        for idx, row in pendentes.iterrows():
+            with st.expander(f"{row['Paciente']} - {row['Data']}"):
+                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}")
+                if st.button("Confirmar", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v_pos; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
+    else: st.info("Nada pendente.")
 
 elif aba == "👤 Perfil":
     st.header("👤 Configurações")
