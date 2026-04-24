@@ -35,18 +35,13 @@ st.markdown(f"""
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
     [data-testid="stSidebar"] [data-testid="stRadio"] > label {{ display: none !important; }}
     div[data-testid="stRadio"] div[role="radiogroup"] label {{
-        background-color: #F3F4F6 !important;
-        border-radius: 12px !important;
-        padding: 12px 15px !important;
-        margin-bottom: 8px !important;
-        width: 100% !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        border: 1px solid transparent !important;
+        background-color: #F3F4F6 !important; border-radius: 12px !important;
+        padding: 12px 15px !important; margin-bottom: 8px !important;
+        width: 100% !important; display: flex !important;
+        justify-content: center !important; align-items: center !important;
     }}
     div[data-testid="stRadio"] div[role="radiogroup"] label p {{
-        color: #1F2937 !important; font-size: 16px !important; margin: 0px !important; display: block !important;
+        color: #1F2937 !important; font-size: 16px !important; margin: 0px !important;
     }}
     div[data-testid="stRadio"] div[data-baseweb="radio"] > div:first-child {{ display: none !important; }}
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{
@@ -65,25 +60,24 @@ st.markdown(f"""
 
 # --- 4. BANCO DE DADOS ---
 def iniciar_banco():
+    # Alimentos
     if os.path.exists("alimentos.csv"):
         df_a = pd.read_csv("alimentos.csv")
-        df_a.columns = df_a.columns.str.strip()
     else:
         df_a = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz Branco"], "Carbos": [28.0, 15.0]})
 
+    # Pacientes
     if os.path.exists("pacientes.csv"):
         df_p = pd.read_csv("pacientes.csv")
-        # Garante que novas colunas existam em arquivos antigos
         for col in ["CPF", "SUS", "Plano", "Sangue"]:
             if col not in df_p.columns: df_p[col] = ""
     else:
         df_p = pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue"])
 
+    # Histórico
     if os.path.exists("dados_glicemia.csv"):
         df_h = pd.read_csv("dados_glicemia.csv")
-        df_h.columns = df_h.columns.str.strip()
         if "Glicemia_Pos" not in df_h.columns: df_h["Glicemia_Pos"] = 0
-        if "Paciente" not in df_h.columns: df_h["Paciente"] = "Geral"
     else:
         df_h = pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
     
@@ -101,7 +95,7 @@ with st.sidebar:
 if aba == "🏠 Início":
     st.header("📝 Registrar Refeição")
     if df_pacientes.empty:
-        st.warning("⚠️ Cadastre um paciente na aba 'Pacientes' antes de continuar.")
+        st.warning("⚠️ Cadastre um paciente na aba 'Pacientes' primeiro.")
     else:
         col1, col2 = st.columns(2)
         with col1:
@@ -123,34 +117,65 @@ if aba == "🏠 Início":
             novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Paciente": pac_sel, "Glicemia_Pre": g_pre, "Carbos": total_c, "Dose": dose, "Momento": momento, "Glicemia_Pos": 0}])
             df_historico = pd.concat([df_historico, novo], ignore_index=True)
             df_historico.to_csv("dados_glicemia.csv", index=False)
-            st.success(f"Registro salvo para {pac_sel}!")
+            st.success(f"Dose para {pac_sel}: {dose} U. Salvo!")
 
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
     
-    with st.expander("➕ Adicionar Novo Paciente", expanded=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            nome_p = st.text_input("Nome Completo")
-            grau_p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
-            cpf_p = st.text_input("CPF (Opcional)")
-        with c2:
-            sus_p = st.text_input("Cartão SUS (Opcional)")
-            plano_p = st.text_input("Plano de Saúde (Opcional)")
-            sangue_p = st.selectbox("Tipo Sanguíneo", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
-            
-        if st.button("Salvar Cadastro"):
-            if nome_p:
-                novo_p = pd.DataFrame([{"Nome": nome_p, "Parentesco": grau_p, "CPF": cpf_p, "SUS": sus_p, "Plano": plano_p, "Sangue": sangue_p}])
-                df_pacientes = pd.concat([df_pacientes, novo_p], ignore_index=True)
-                df_pacientes.to_csv("pacientes.csv", index=False)
-                st.success(f"Paciente {nome_p} cadastrado!")
-                st.rerun()
-            else:
-                st.error("O Nome é obrigatório.")
+    aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
     
-    st.subheader("Lista de Pacientes")
-    st.dataframe(df_pacientes, use_container_width=True)
+    with aba_p[0]:
+        with st.form("form_add"):
+            c1, c2 = st.columns(2)
+            with c1:
+                n = st.text_input("Nome Completo")
+                p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
+                c = st.text_input("CPF")
+            with c2:
+                s = st.text_input("Cartão SUS")
+                pl = st.text_input("Plano de Saúde")
+                sg = st.selectbox("Sangue", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
+            if st.form_submit_button("Cadastrar Paciente"):
+                if n:
+                    novo_p = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": c, "SUS": s, "Plano": pl, "Sangue": sg}])
+                    df_pacientes = pd.concat([df_pacientes, novo_p], ignore_index=True)
+                    df_pacientes.to_csv("pacientes.csv", index=False)
+                    st.success("Cadastrado!"); st.rerun()
+                else: st.error("O nome é obrigatório.")
+
+    with aba_p[1]:
+        if not df_pacientes.empty:
+            # Seleção para edição/remoção
+            lista_p = df_pacientes["Nome"].tolist()
+            edit_p = st.selectbox("Selecione o Paciente para alterar", lista_p)
+            idx = df_pacientes.index[df_pacientes["Nome"] == edit_p][0]
+            
+            st.markdown("---")
+            c1, c2 = st.columns(2)
+            with c1:
+                new_n = st.text_input("Nome", value=df_pacientes.at[idx, "Nome"])
+                new_p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"], 
+                                   index=["Filho", "Filha", "Cônjuge", "Outro"].index(df_pacientes.at[idx, "Parentesco"]))
+                new_c = st.text_input("CPF", value=df_pacientes.at[idx, "CPF"])
+            with c2:
+                new_s = st.text_input("SUS", value=df_pacientes.at[idx, "SUS"])
+                new_pl = st.text_input("Plano", value=df_pacientes.at[idx, "Plano"])
+                new_sg = st.selectbox("Sangue", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+                                    index=["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].index(df_pacientes.at[idx, "Sangue"]))
+            
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("💾 Salvar Alterações"):
+                    df_pacientes.loc[idx] = [new_n, new_p, new_c, new_s, new_pl, new_sg]
+                    df_pacientes.to_csv("pacientes.csv", index=False)
+                    st.success("Alterado!"); st.rerun()
+            with col_b2:
+                if st.button("🗑️ Remover Paciente"):
+                    df_pacientes = df_pacientes.drop(idx)
+                    df_pacientes.to_csv("pacientes.csv", index=False)
+                    st.warning("Removido!"); st.rerun()
+        else:
+            st.info("Nenhum paciente cadastrado.")
 
 elif aba == "📌 Pendentes":
     st.header("📌 Glicemia Pós-Refeição")
@@ -159,18 +184,17 @@ elif aba == "📌 Pendentes":
         for idx, row in pendentes.iterrows():
             with st.expander(f"{row.get('Paciente', 'Geral')} - {row['Momento']} ({row['Data']})"):
                 v_pos = st.number_input("Valor 2h após", key=f"p_{idx}", help="Meça 2h após a refeição.")
-                if st.button("Confirmar", key=f"b_{idx}"):
+                if st.button("Confirmar Medição", key=f"b_{idx}"):
                     df_historico.at[idx, "Glicemia_Pos"] = v_pos
                     df_historico.to_csv("dados_glicemia.csv", index=False)
                     st.rerun()
-    else:
-        st.info("Nada pendente.")
+    else: st.info("Nada pendente.")
 
 elif aba == "📊 Histórico":
     st.header("📜 Histórico")
     st.dataframe(df_historico, use_container_width=True)
     if not df_historico.empty:
-        st.download_button("📥 PDF", data=gerar_pdf(df_historico), file_name="historico.pdf")
+        st.download_button("Baixar PDF", data=gerar_pdf(df_historico), file_name="historico.pdf")
 
 elif aba == "🍎 Alimentos":
     st.header("🍎 Alimentos")
