@@ -36,23 +36,83 @@ def gerar_pdf(df):
         pdf.ln()
     return pdf.output(dest='S').encode('latin-1')
 
-# --- CONFIGURAÇÃO DE TEMA E DADOS ---
+# --- CONFIGURAÇÃO E DESIGN MODERNO ---
 st.set_page_config(page_title="BioCare Kids", layout="wide")
 
-if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#FFFFFF"
-if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#FF4B4B"
+if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
+if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
 st.markdown(f"""
     <style>
-    .stApp {{ background-color: {st.session_state.cor_fundo}; }}
+    /* Fundo e Fonte Principal */
+    .stApp {{ 
+        background-color: {st.session_state.cor_fundo};
+        font-family: 'Inter', -apple-system, sans-serif;
+    }}
+
+    /* Botões Modernos (Estilo Mobile Pro) */
     .stButton>button {{
+        width: 100%;
+        border-radius: 14px;
+        height: 3.5em;
         background-color: {st.session_state.cor_botao} !important;
         color: white !important;
-        border-radius: 10px;
+        border: none !important;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 12px {st.session_state.cor_botao}44;
+        transition: all 0.2s ease-in-out;
+    }}
+    .stButton>button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px {st.session_state.cor_botao}66;
+    }}
+
+    /* Barra Lateral Moderna */
+    section[data-testid="stSidebar"] {{
+        background-color: white !important;
+        border-right: 1px solid #E5E7EB;
+    }}
+    
+    /* Customização dos Itens do Menu (Radio) */
+    div[data-testid="stRadio"] > div {{
+        gap: 8px;
+    }}
+    div[data-testid="stRadio"] label {{
+        background-color: #F3F4F6 !important;
+        border-radius: 12px !important;
+        padding: 12px 16px !important;
+        border: 1px solid transparent !important;
+        transition: 0.2s;
+        margin-bottom: 4px;
+    }}
+    div[data-testid="stRadio"] label:hover {{
+        border-color: {st.session_state.cor_botao}88 !important;
+    }}
+    div[data-testid="stRadio"] label[data-baseweb="radio"] div:first-child {{
+        display: none !important; /* Esconde o círculo antigo pra parecer botão de menu */
+    }}
+    div[data-testid="stRadio"] input[type="radio"]:checked + div {{
+        background-color: {st.session_state.cor_botao} !important;
+        color: white !important;
+    }}
+    /* Cor do texto quando selecionado */
+    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{
+        color: white !important;
+        font-weight: bold;
+    }}
+
+    /* Estilização de Containers (Cards) */
+    div[data-testid="stMetric"], .stTabs {{
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }}
     </style>
     """, unsafe_allow_html=True)
 
+# --- CARREGAR DADOS ---
 try:
     df_historico = pd.read_csv("dados_glicemia.csv")
 except:
@@ -67,37 +127,22 @@ except:
 
 # --- MENU LATERAL ---
 with st.sidebar:
-    st.title("📟 BioCare Kids")
-    aba = st.radio("Navegar para:", ["🏠 Registro", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"])
+    st.markdown("<h2 style='text-align: center; color: #1F2937;'>📟 BioCare</h2>", unsafe_allow_html=True)
+    st.write("")
+    aba = st.radio("MENU", ["🏠 Registro", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
-# --- LÓGICA DAS ABAS ---
+# --- CONTEÚDO ---
 
 if aba == "🏠 Registro":
-    st.header("📝 Novo Registro")
+    st.markdown("### 📝 Novo Registro")
     col1, col2 = st.columns(2)
     with col1:
-        # Adicionado o parâmetro 'help' para as explicações
-        g_pre = st.number_input(
-            "Glicemia Atual", 
-            min_value=20, 
-            value=110,
-            help="Medida em mg/dL (miligramas por decilitro). Indica a concentração de glicose no sangue antes desta refeição."
-        )
+        g_pre = st.number_input("Glicemia Atual", min_value=20, value=110, help="Medida em mg/dL.")
         if g_pre < 70: st.error("⚠️ HIPOGLICEMIA!")
-    
     with col2:
-        alimento_sel = st.selectbox(
-            "Alimento", 
-            df_alimentos["Alimento"].tolist(),
-            help="Selecione o alimento principal. O sistema buscará automaticamente o valor de carboidratos cadastrado."
-        )
+        alimento_sel = st.selectbox("Alimento", df_alimentos["Alimento"].tolist())
         carbo_unit = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
-        qtd = st.number_input(
-            "Quantidade", 
-            min_value=0.1, 
-            value=1.0,
-            help="Multiplicador baseado na unidade (ex: 2 colheres, 1.5 pães)."
-        )
+        qtd = st.number_input("Quantidade", min_value=0.1, value=1.0)
         carbo_total = round(float(carbo_unit) * qtd, 1)
         st.info(f"Total: {carbo_total}g de Carbo")
 
@@ -109,48 +154,24 @@ if aba == "🏠 Registro":
         st.success(f"Dose: {dose} U. Salvo!")
 
 elif aba == "📊 Histórico":
-    st.header("📜 Histórico")
+    st.markdown("### 📜 Histórico")
     st.dataframe(df_historico, use_container_width=True)
     if not df_historico.empty:
-        st.download_button(
-            "📥 Baixar PDF", 
-            data=gerar_pdf(df_historico), 
-            file_name="glicemia.pdf",
-            help="Gera um arquivo PDF com todos os registros para enviar ao médico."
-        )
+        st.download_button("📥 Exportar PDF", data=gerar_pdf(df_historico), file_name="glicemia.pdf")
 
 elif aba == "🍎 Alimentos":
-    st.header("🍎 Alimentos")
-    st.info("💡 Dica: Clique duas vezes em uma célula para editar o valor do carboidrato.")
+    st.markdown("### 🍎 Tabela de Alimentos")
     df_alimentos = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
     if st.button("Salvar Tabela"):
         df_alimentos.to_csv("alimentos.csv", index=False)
-        st.success("Salvo!")
+        st.success("Tabela Atualizada!")
 
 elif aba == "👤 Perfil":
-    st.header("👤 Perfil e Customização")
-    
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        meta_glic = st.number_input(
-            "Meta Glicêmica", 
-            value=100,
-            help="O valor de glicemia que o médico estabeleceu como ideal (objetivo)."
-        )
-    with col_p2:
-        sensib = st.number_input(
-            "Fator de Sensibilidade", 
-            value=50,
-            help="Quanto 1 unidade de insulina baixa a glicemia no sangue (ex: 1U baixa 50 mg/dL)."
-        )
-    
-    st.divider()
-    st.subheader("🎨 Cores do Aplicativo")
+    st.markdown("### 👤 Perfil e Aparência")
+    st.subheader("🎨 Estilo")
     c1, c2 = st.columns(2)
-    with c1: nova_cor_fundo = st.color_picker("Cor do Fundo", st.session_state.cor_fundo)
-    with c2: nova_cor_botao = st.color_picker("Cor dos Botões", st.session_state.cor_botao)
+    with c1: st.session_state.cor_fundo = st.color_picker("Cor de Fundo", st.session_state.cor_fundo)
+    with c2: st.session_state.cor_botao = st.color_picker("Cor Principal (Botões)", st.session_state.cor_botao)
     
-    if st.button("Aplicar Novas Cores"):
-        st.session_state.cor_fundo = nova_cor_fundo
-        st.session_state.cor_botao = nova_cor_botao
+    if st.button("Aplicar Mudanças"):
         st.rerun()
