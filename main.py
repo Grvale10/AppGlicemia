@@ -8,44 +8,48 @@ import os
 if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
 if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
-# --- DESIGN E REMOÇÃO TOTAL DE RÓTULOS ---
+# --- DESIGN E LIMPEZA DE SELETORES ---
 st.set_page_config(page_title="BioCare Kids", layout="wide")
 
 st.markdown(f"""
     <style>
+    /* Fundo Geral */
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
     
-    /* 🛠️ A SOLUÇÃO DEFINITIVA PARA O TEXTO SOBRANDO 🛠️ */
-    /* Remove qualquer label, div de legenda ou texto explicativo dentro do rádio lateral */
-    [data-testid="stSidebar"] [data-testid="stRadio"] > label,
-    [data-testid="stSidebar"] [data-testid="stRadio"] div[data-testid="stMarkdownContainer"],
-    [data-testid="stSidebar"] [data-testid="stRadio"] caption {{
+    /* 1. REMOVE O TEXTO CHATO (O RÓTULO DO RADIO) */
+    [data-testid="stSidebar"] [data-testid="stRadio"] > label {{
         display: none !important;
-        height: 0px !important;
-        margin: 0px !important;
-        padding: 0px !important;
-        visibility: hidden !important;
     }}
 
-    /* Estilo dos Botões do Menu */
-    div[data-testid="stRadio"] label {{
+    /* 2. ESTILIZAÇÃO DOS BOTÕES DO MENU */
+    div[data-testid="stRadio"] div[role="radiogroup"] label {{
         background-color: #F3F4F6 !important;
         border-radius: 12px !important;
-        padding: 12px 0px !important;
-        margin-bottom: 10px !important;
+        padding: 12px 15px !important;
+        margin-bottom: 8px !important;
         width: 100% !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         border: 1px solid transparent !important;
+        transition: all 0.2s ease;
     }}
     
-    /* Esconde o círculo do rádio original */
+    /* GARANTE QUE O TEXTO DENTRO DO BOTÃO APAREÇA */
+    div[data-testid="stRadio"] div[role="radiogroup"] label p {{
+        color: #1F2937 !important;
+        font-size: 16px !important;
+        margin: 0px !important;
+        display: block !important;
+        opacity: 1 !important;
+    }}
+
+    /* 3. ESCONDE O CÍRCULO DO RADIO */
     div[data-testid="stRadio"] div[data-baseweb="radio"] > div:first-child {{
         display: none !important;
     }}
 
-    /* Botão Selecionado */
+    /* 4. ESTILO DO BOTÃO SELECIONADO */
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{
         background-color: {st.session_state.cor_botao} !important;
     }}
@@ -54,7 +58,7 @@ st.markdown(f"""
         font-weight: bold !important;
     }}
 
-    /* Botões de Ação no Conteúdo */
+    /* BOTÃO SALVAR REGISTRO */
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
         background-color: {st.session_state.cor_botao} !important;
@@ -63,83 +67,67 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CARREGAR DADOS COM AUTO-CORREÇÃO ---
-def iniciar_dados():
-    # Garantir que alimentos.csv seja válido
-    try:
-        if os.path.exists("alimentos.csv"):
-            df = pd.read_csv("alimentos.csv")
-            if "Alimento" not in df.columns or "Carbos" not in df.columns:
-                raise ValueError("Colunas incorretas")
-        else:
-            raise FileNotFoundError
-    except:
-        df = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz Branco"], "Carbos": [28.0, 15.0]})
-        df.to_csv("alimentos.csv", index=False)
+# --- FUNÇÃO DE CARGA DE DADOS (ANTI-ERRO) ---
+def carregar_dados_seguro():
+    # Alimentos
+    if os.path.exists("alimentos.csv"):
+        df = pd.read_csv("alimentos.csv")
+        if "Alimento" not in df.columns or "Carbos" not in df.columns:
+            df = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz"], "Carbos": [28.0, 15.0]})
+    else:
+        df = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz"], "Carbos": [28.0, 15.0]})
     
-    # Garantir que dados_glicemia.csv seja válido
-    try:
-        if os.path.exists("dados_glicemia.csv"):
-            hist = pd.read_csv("dados_glicemia.csv")
-        else:
-            raise FileNotFoundError
-    except:
+    # Histórico
+    if os.path.exists("dados_glicemia.csv"):
+        hist = pd.read_csv("dados_glicemia.csv")
+    else:
         hist = pd.DataFrame(columns=["Data", "Glicemia_Pre", "Carbos", "Dose", "Momento"])
-        hist.to_csv("dados_glicemia.csv", index=False)
     
     return df, hist
 
-df_alimentos, df_historico = iniciar_dados()
+df_alimentos, df_historico = carregar_dados_seguro()
 
 # --- MENU LATERAL ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; font-size: 26px; color: #1F2937; margin-bottom: 30px; margin-top: 20px;'>Menu</h1>", unsafe_allow_html=True)
-    # O CSS acima vai garantir que o nome "Seletor" nunca apareça
-    aba = st.radio("Seletor", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    st.markdown("<h1 style='text-align: center; font-size: 24px; color: #1F2937; margin-bottom: 25px;'>Menu</h1>", unsafe_allow_html=True)
+    # label_visibility="collapsed" é nativo do Streamlit para o que você quer
+    aba = st.radio("Menu_Principal", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- TELAS ---
 if aba == "🏠 Início":
     st.header("📝 Registrar")
     col1, col2 = st.columns(2)
     with col1:
-        g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, value=110)
+        g_pre = st.number_input("Glicemia Atual", min_value=20, value=110)
     with col2:
-        lista_alimentos = df_alimentos["Alimento"].tolist()
-        alimento_sel = st.selectbox("Escolha o Alimento", lista_alimentos)
+        lista = df_alimentos["Alimento"].tolist()
+        alimento_sel = st.selectbox("Alimento", lista)
         
-        # Proteção contra erro de busca
-        try:
-            carbo_base = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
-        except:
-            carbo_base = 0.0
+        # Busca segura para evitar KeyError
+        carbo_linha = df_alimentos[df_alimentos["Alimento"] == alimento_sel]
+        carbo_base = carbo_linha["Carbos"].values[0] if not carbo_linha.empty else 0.0
             
         qtd = st.number_input("Quantidade", min_value=0.1, value=1.0)
-        total_c = round(float(carbo_base) * qtd, 1)
-        st.info(f"Carboidratos Totais: {total_c}g")
+        st.info(f"Total: {round(carbo_base * qtd, 1)}g de Carbo")
 
     if st.button("Salvar Registro"):
-        # Cálculo: (Glicemia - Meta) / Sensibilidade + (Carbo / Relação)
-        dose = round(((g_pre - 100) / 50) + (total_c / 15), 1)
-        novo_reg = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Glicemia_Pre": g_pre, "Carbos": total_c, "Dose": max(0.0, dose), "Momento": "Refeição"}])
-        df_historico = pd.concat([df_historico, novo_reg], ignore_index=True)
-        df_historico.to_csv("dados_glicemia.csv", index=False)
-        st.success(f"Dose sugerida: {max(0.0, dose)} U. Salvo com sucesso!")
+        dose = round(((g_pre - 100) / 50) + ((carbo_base * qtd) / 15), 1)
+        st.success(f"Dose: {max(0.0, dose)} U. Salvo!")
 
 elif aba == "📊 Histórico":
     st.header("📜 Histórico")
     st.dataframe(df_historico, use_container_width=True)
 
 elif aba == "🍎 Alimentos":
-    st.header("🍎 Gerenciar Tabela")
-    df_novo = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
-    if st.button("Salvar Alterações"):
-        df_novo.to_csv("alimentos.csv", index=False)
-        st.success("Tabela atualizada!")
+    st.header("🍎 Alimentos")
+    novo_df = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+    if st.button("Salvar Tabela"):
+        novo_df.to_csv("alimentos.csv", index=False)
+        st.success("Salvo!")
 
 elif aba == "👤 Perfil":
-    st.header("👤 Configurações")
-    with st.expander("🎨 Temas e Cores"):
-        c1, c2 = st.columns(2)
-        with c1: st.session_state.cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
-        with c2: st.session_state.cor_botao = st.color_picker("Botões", st.session_state.cor_botao)
+    st.header("👤 Perfil")
+    with st.expander("🎨 Temas"):
+        st.session_state.cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
+        st.session_state.cor_botao = st.color_picker("Botão", st.session_state.cor_botao)
         if st.button("Aplicar"): st.rerun()
