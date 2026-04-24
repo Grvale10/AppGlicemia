@@ -60,27 +60,17 @@ st.markdown(f"""
 
 # --- 4. BANCO DE DADOS ---
 def iniciar_banco():
-    # Alimentos
-    if os.path.exists("alimentos.csv"):
-        df_a = pd.read_csv("alimentos.csv")
-    else:
-        df_a = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz Branco"], "Carbos": [28.0, 15.0]})
-
-    # Pacientes
+    df_a = pd.read_csv("alimentos.csv") if os.path.exists("alimentos.csv") else pd.DataFrame({"Alimento": ["Pão", "Arroz"], "Carbos": [28.0, 15.0]})
+    
     if os.path.exists("pacientes.csv"):
         df_p = pd.read_csv("pacientes.csv")
         for col in ["CPF", "SUS", "Plano", "Sangue"]:
             if col not in df_p.columns: df_p[col] = ""
+        df_p = df_p.fillna("") # Garante que nada seja NaN
     else:
         df_p = pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue"])
 
-    # Histórico
-    if os.path.exists("dados_glicemia.csv"):
-        df_h = pd.read_csv("dados_glicemia.csv")
-        if "Glicemia_Pos" not in df_h.columns: df_h["Glicemia_Pos"] = 0
-    else:
-        df_h = pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
-    
+    df_h = pd.read_csv("dados_glicemia.csv") if os.path.exists("dados_glicemia.csv") else pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
     return df_a, df_h, df_p
 
 df_alimentos, df_historico, df_pacientes = iniciar_banco()
@@ -104,11 +94,8 @@ if aba == "🏠 Início":
             momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
         with col2:
             alimento_sel = st.selectbox("Alimento", df_alimentos["Alimento"].tolist())
-            try:
-                val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
-            except:
-                val_c = 0.0
-            qtd = st.number_input("Quantidade", min_value=0.1, value=1.0, help="Quantidade/porção consumida.")
+            val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0] if alimento_sel in df_alimentos["Alimento"].values else 0.0
+            qtd = st.number_input("Quantidade", min_value=0.1, value=1.0, help="Quantidade consumida.")
             total_c = round(float(val_c) * qtd, 1)
             st.info(f"Total Carboidratos: {total_c}g")
 
@@ -121,7 +108,6 @@ if aba == "🏠 Início":
 
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
-    
     aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
     
     with aba_p[0]:
@@ -141,53 +127,57 @@ elif aba == "👥 Pacientes":
                     df_pacientes = pd.concat([df_pacientes, novo_p], ignore_index=True)
                     df_pacientes.to_csv("pacientes.csv", index=False)
                     st.success("Cadastrado!"); st.rerun()
-                else: st.error("O nome é obrigatório.")
+                else: st.error("Nome obrigatório.")
 
     with aba_p[1]:
         if not df_pacientes.empty:
-            # Seleção para edição/remoção
-            lista_p = df_pacientes["Nome"].tolist()
-            edit_p = st.selectbox("Selecione o Paciente para alterar", lista_p)
+            edit_p = st.selectbox("Selecione para alterar", df_pacientes["Nome"].tolist())
             idx = df_pacientes.index[df_pacientes["Nome"] == edit_p][0]
             
+            # --- PROTEÇÃO CONTRA O VALUEERROR ---
+            lista_parentesco = ["Filho", "Filha", "Cônjuge", "Outro"]
+            lista_sangue = ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+            
+            val_p = df_pacientes.at[idx, "Parentesco"]
+            val_s = df_pacientes.at[idx, "Sangue"]
+            
+            idx_p = lista_parentesco.index(val_p) if val_p in lista_parentesco else 0
+            idx_s = lista_sangue.index(val_s) if val_s in lista_sangue else 0
+            # ------------------------------------
+
             st.markdown("---")
             c1, c2 = st.columns(2)
             with c1:
                 new_n = st.text_input("Nome", value=df_pacientes.at[idx, "Nome"])
-                new_p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"], 
-                                   index=["Filho", "Filha", "Cônjuge", "Outro"].index(df_pacientes.at[idx, "Parentesco"]))
+                new_p = st.selectbox("Parentesco", lista_parentesco, index=idx_p)
                 new_c = st.text_input("CPF", value=df_pacientes.at[idx, "CPF"])
             with c2:
                 new_s = st.text_input("SUS", value=df_pacientes.at[idx, "SUS"])
                 new_pl = st.text_input("Plano", value=df_pacientes.at[idx, "Plano"])
-                new_sg = st.selectbox("Sangue", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
-                                    index=["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].index(df_pacientes.at[idx, "Sangue"]))
+                new_sg = st.selectbox("Sangue", lista_sangue, index=idx_s)
             
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button("💾 Salvar Alterações"):
+            cb1, cb2 = st.columns(2)
+            with cb1:
+                if st.button("💾 Salvar"):
                     df_pacientes.loc[idx] = [new_n, new_p, new_c, new_s, new_pl, new_sg]
-                    df_pacientes.to_csv("pacientes.csv", index=False)
-                    st.success("Alterado!"); st.rerun()
-            with col_b2:
-                if st.button("🗑️ Remover Paciente"):
+                    df_pacientes.to_csv("pacientes.csv", index=False); st.success("Salvo!"); st.rerun()
+            with cb2:
+                if st.button("🗑️ Remover"):
                     df_pacientes = df_pacientes.drop(idx)
-                    df_pacientes.to_csv("pacientes.csv", index=False)
-                    st.warning("Removido!"); st.rerun()
+                    df_pacientes.to_csv("pacientes.csv", index=False); st.warning("Removido!"); st.rerun()
         else:
-            st.info("Nenhum paciente cadastrado.")
+            st.info("Nenhum cadastrado.")
 
 elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós-Refeição")
+    st.header("📌 Glicemia Pós (2h)")
     pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
     if not pendentes.empty:
         for idx, row in pendentes.iterrows():
             with st.expander(f"{row.get('Paciente', 'Geral')} - {row['Momento']} ({row['Data']})"):
                 v_pos = st.number_input("Valor 2h após", key=f"p_{idx}", help="Meça 2h após a refeição.")
-                if st.button("Confirmar Medição", key=f"b_{idx}"):
+                if st.button("Salvar Medição", key=f"b_{idx}"):
                     df_historico.at[idx, "Glicemia_Pos"] = v_pos
-                    df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.rerun()
+                    df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
     else: st.info("Nada pendente.")
 
 elif aba == "📊 Histórico":
@@ -198,13 +188,12 @@ elif aba == "📊 Histórico":
 
 elif aba == "🍎 Alimentos":
     st.header("🍎 Alimentos")
-    df_novo = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+    df_n = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
     if st.button("Salvar Tabela"):
-        df_novo.to_csv("alimentos.csv", index=False)
-        st.success("Salvo!")
+        df_n.to_csv("alimentos.csv", index=False); st.success("Salvo!")
 
 elif aba == "👤 Perfil":
-    st.header("👤 Perfil e Aparência")
+    st.header("👤 Perfil")
     with st.expander("🎨 Temas"):
         st.session_state.cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
         st.session_state.cor_botao = st.color_picker("Botões", st.session_state.cor_botao)
