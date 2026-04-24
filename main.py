@@ -4,75 +4,70 @@ import streamlit_authenticator as stauth
 from carbeglice import calcular_insulina, definir_status, gerar_pdf
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DE LOGIN (SIMPLIFICADA) ---
-# Aqui definimos quem pode entrar no app
-nomes = ["Família Valente"]
-usuarios = ["admin"]
-senhas = ["admin123"] # Depois troque por uma de sua preferência
+# --- 1. CONFIGURAÇÃO DE LOGIN ---
+# Definindo usuário e senha de forma simples para a versão mais nova da biblioteca
+credentials = {
+    "usernames": {
+        "admin": {
+            "name": "Familia Valente",
+            "password": "admin123"  # Você pode mudar sua senha aqui
+        }
+    }
+}
 
-# Criptografia da senha (necessário para segurança)
-hashed_passwords = stauth.Hasher(senhas).generate()
-
+# Inicializa o autenticador
 authenticator = stauth.Authenticate(
-    {'usernames': {usuarios[0]: {'name': nomes[0], 'password': hashed_passwords[0]}}},
-    "glicemia_cookie", "signature_key", cookie_expiry_days=30
+    credentials,
+    "glicemia_cookie",
+    "signature_key",
+    cookie_expiry_days=30
 )
 
 # Renderiza a tela de login
-name, authentication_status, username = authenticator.login("Login", "main")
+name, authentication_status, username = authenticator.login("Acesso Restrito", "main")
 
+# --- 2. VERIFICAÇÃO DE STATUS DE LOGIN ---
 if authentication_status == False:
     st.error("Usuário ou senha incorretos")
 elif authentication_status == None:
-    st.warning("Por favor, insira seu usuário e senha")
+    st.warning("Por favor, faça login para acessar os dados da sua filha.")
 elif authentication_status:
-    # --- SE O LOGIN DER CERTO, RODA O APP ABAIXO ---
-
+    
+    # --- 3. INICIALIZAÇÃO DE DADOS E TEMAS (SÓ RODA SE LOGADO) ---
     if "cor_primaria" not in st.session_state:
-        st.session_state.cor_primaria = "#007BFF"
+        st.session_state.cor_primaria = "#FF4B4B"
     if "cor_fundo" not in st.session_state:
-        st.session_state.cor_fundo = "#F8F9FA"
+        st.session_state.cor_fundo = "#FFFFFF"
 
-    # Estilo Visual (CSS)
+    # Aplicar CSS para botões e visual
     st.markdown(f"""
         <style>
         .stButton>button {{
-            width: 100%;
-            border-radius: 12px;
-            background: linear-gradient(135deg, {st.session_state.cor_primaria}, #00c6ff);
-            color: white; font-weight: bold; border: none; height: 3.5em;
+            width: 100%; border-radius: 12px; height: 3.5em;
+            background: linear-gradient(45deg, {st.session_state.cor_primaria}, #ff8a8a);
+            color: white; border: none; font-weight: bold;
         }}
+        .main {{ background-color: {st.session_state.cor_fundo}; }}
         </style>
         """, unsafe_allow_html=True)
 
-    # BARRA LATERAL
+    # Carregar Bancos de Dados
+    try:
+        df_historico = pd.read_csv("dados_glicemia.csv")
+    except:
+        df_historico = pd.DataFrame(columns=["Data", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
+
+    try:
+        df_alimentos = pd.read_csv("alimentos.csv")
+    except:
+        df_alimentos = pd.DataFrame({"Alimento": ["Manual"], "Carboidratos por Porção": [0], "Unidade": ["g"]})
+
+    # --- 4. BARRA LATERAL ---
     with st.sidebar:
-        st.title(f"Bem-vindo, {name}")
-        aba = st.radio("Menu principal", ["🏠 Painel", "⚙️ Perfil e Temas", "🍎 Alimentos"])
+        st.title(f"Olá, {name}")
+        menu = st.radio("Navegação", ["🏠 Painel Principal", "📌 Pendentes (2h Após)", "⚙️ Perfil e Temas", "🍎 Tabela de Alimentos"])
         st.divider()
         authenticator.logout("Sair do Sistema", "sidebar")
 
-    # TELAS DO APP
-    if aba == "🏠 Painel":
-        st.title("📊 Controle de Glicemia")
-        # (Aqui entra o código das abas de registro que já fizemos)
-        t1, t2 = st.tabs(["📝 Registrar", "📜 Histórico"])
-        with t1:
-            st.info("Área de registro pronta para uso.")
-        with t2:
-            st.info("O histórico aparecerá aqui.")
-
-    elif aba == "⚙️ Perfil e Temas":
-        st.header("👤 Configurações de Perfil")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.text_input("Nome da Criança", "Filha")
-            st.number_input("Idade", 7)
-        with col2:
-            st.session_state.cor_primaria = st.color_picker("Cor dos Botões", st.session_state.cor_primaria)
-            if st.button("Salvar Preferências"):
-                st.rerun()
-
-    elif aba == "🍎 Alimentos":
-        st.header("🍎 Banco de Alimentos")
-        st.write("Gerencie aqui os carboidratos da dieta.")
+    # --- 5. LOGICA DAS TELAS ---
+    if menu
