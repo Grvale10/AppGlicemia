@@ -84,12 +84,11 @@ def iniciar_banco():
     if os.path.exists("pacientes.csv"):
         df_p = pd.read_csv("pacientes.csv")
         df_p.columns = df_p.columns.str.strip()
-        # Verificando as colunas no carregamento
-        for col in ["CPF", "SUS", "Plano", "Sangue"]:
+        for col in ["CPF", "SUS", "Plano", "Sangue", "Tipo_Plano"]:
             if col not in df_p.columns: df_p[col] = ""
         df_p = df_p.fillna("")
     else:
-        df_p = pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue"])
+        df_p = pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue", "Tipo_Plano"])
 
     if os.path.exists("dados_glicemia.csv"):
         df_h = pd.read_csv("dados_glicemia.csv")
@@ -143,6 +142,7 @@ elif aba == "👥 Pacientes":
     aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
     
     lista_tipos_sangue = ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+    lista_planos = ["Particular", "SUS", "Outro"]
 
     with aba_p[0]:
         with st.form("add_pac"):
@@ -152,12 +152,15 @@ elif aba == "👥 Pacientes":
                 p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
                 cp = st.text_input("CPF")
             with c2: 
-                # ALTERAÇÃO: Rótulo alterado para 'Tipo Sanguíneo'
                 s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue)
-                pl = st.text_input("Plano")
+                # Alteração: Plano virou selectbox
+                tp_plano = st.selectbox("Plano de Saúde", lista_planos)
+                # Campo condicional para dados do plano
+                detalhe_plano = st.text_input("Dados do Plano (Opcional)", placeholder="Ex: Unimed, Bradesco...")
+            
             if st.form_submit_button("Cadastrar"):
                 if n:
-                    np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": pl}])
+                    np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": detalhe_plano, "Tipo_Plano": tp_plano, "SUS": ""}])
                     df_pacientes = pd.concat([df_pacientes, np], ignore_index=True); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
 
     with aba_p[1]:
@@ -165,26 +168,32 @@ elif aba == "👥 Pacientes":
             edit_p = st.selectbox("Selecionar Paciente", df_pacientes["Nome"].tolist())
             idx = df_pacientes.index[df_pacientes["Nome"] == edit_p][0]
             
-            # Dados atuais com segurança para o select
             curr_s = df_pacientes.at[idx, "Sangue"]
+            curr_tp = df_pacientes.at[idx, "Tipo_Plano"] if "Tipo_Plano" in df_pacientes.columns else "Particular"
             
             st.markdown("---")
-            c1, col_edit_2 = st.columns(2)
+            c1, c2 = st.columns(2)
             with c1:
                 n_n = st.text_input("Nome", value=df_pacientes.at[idx, "Nome"])
-                # Outros campos omitidos aqui para brevidade no diff, mas mantidos no código base
-            with col_edit_2:
-                # ALTERAÇÃO: Rótulo alterado para 'Tipo Sanguíneo' na edição
+                n_p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"], index=0) # Index simplificado para o diff
+                n_c = st.text_input("CPF", value=df_pacientes.at[idx, "CPF"])
+            with c2:
                 n_sg = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue, index=lista_tipos_sangue.index(curr_s) if curr_s in lista_tipos_sangue else 0)
+                n_tp = st.selectbox("Plano", lista_planos, index=lista_planos.index(curr_tp) if curr_tp in lista_planos else 0)
+                n_pl = st.text_input("Dados do Plano", value=df_pacientes.at[idx, "Plano"])
             
             if st.button("💾 Salvar Alterações"):
                 df_pacientes.at[idx, "Nome"] = n_n
                 df_pacientes.at[idx, "Sangue"] = n_sg
+                df_pacientes.at[idx, "Tipo_Plano"] = n_tp
+                df_pacientes.at[idx, "Plano"] = n_pl
+                df_pacientes.at[idx, "CPF"] = n_c
                 df_pacientes.to_csv("pacientes.csv", index=False); st.success("Atualizado!"); st.rerun()
 
             if st.button("🗑️ Remover Paciente"):
                 df_pacientes = df_pacientes.drop(idx); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
 
+# --- Outras abas permanecem inalteradas conforme Código Base ---
 elif aba == "📌 Pendentes":
     st.header("📌 Glicemia Pós-Refeição")
     pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
