@@ -20,7 +20,12 @@ def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
 def gerar_pdf_detalhado(df_hist, df_pacs):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pacientes_no_hist = df_hist["Paciente"].unique() if "Paciente" in df_hist.columns else ["Geral"]
+    
+    # Tratamento para evitar erro se o histórico estiver vazio
+    if df_hist.empty:
+        return b""
+
+    pacientes_no_hist = df_hist["Paciente"].unique()
     for p_nome in pacientes_no_hist:
         pdf.add_page()
         pdf.set_font("Arial", "B", 18); pdf.set_text_color(99, 102, 241)
@@ -28,6 +33,7 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
         pdf.set_font("Arial", "", 10); pdf.set_text_color(0, 0, 0)
         pdf.cell(190, 8, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align='C')
         pdf.ln(5)
+        
         p_info = df_pacs[df_pacs["Nome"] == p_nome]
         if not p_info.empty:
             p_info = p_info.iloc[0]
@@ -37,11 +43,13 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
             pdf.cell(95, 8, f"CPF: {p_info.get('CPF', '-')}"); pdf.cell(95, 8, f"Tipo Sanguineo: {p_info.get('Sangue', '-')}", ln=True)
             pdf.cell(95, 8, f"Plano: {p_info.get('Tipo_Plano', 'N/A')}"); pdf.cell(95, 8, f"Detalhes: {p_info.get('Plano', '-')}", ln=True)
             pdf.ln(5)
+            
         pdf.set_font("Arial", "B", 10); pdf.set_fill_color(99, 102, 241); pdf.set_text_color(255, 255, 255)
         pdf.cell(30, 10, " Data/Hora", border=1, fill=True); pdf.cell(35, 10, " Momento", border=1, fill=True)
         pdf.cell(25, 10, " Glic. Pre", border=1, fill=True); pdf.cell(25, 10, " Carbos", border=1, fill=True)
         pdf.cell(25, 10, " Dose (U)", border=1, fill=True); pdf.cell(25, 10, " Glic. Pos", border=1, fill=True, ln=True)
         pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", "", 9)
+        
         dados_p = df_hist[df_hist["Paciente"] == p_nome]
         for _, row in dados_p.iterrows():
             pdf.cell(30, 8, str(row['Data']), border=1); pdf.cell(35, 8, str(row.get('Momento', 'Refeicao')), border=1)
@@ -49,11 +57,13 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
             pdf.cell(25, 8, f"{row['Dose']} U", border=1)
             g_val = row.get('Glicemia_Pos', 0); pdf.cell(25, 8, f"{g_val if g_val != 0 else '-'}", border=1, ln=True)
     
-    # --- CORREÇÃO DO ERRO ATTRIBUTEERROR ---
-    resultado_pdf = pdf.output(dest='S')
-    if isinstance(resultado_pdf, str):
-        return resultado_pdf.encode('latin-1')
-    return resultado_pdf
+    # --- AJUSTE FINAL DE COMPATIBILIDADE DE BYTES ---
+    try:
+        # Tenta extrair como bytes diretamente (padrão FPDF2 moderno)
+        return bytes(pdf.output())
+    except:
+        # Caso falhe, usa o método manual de buffer para garantir bytes
+        return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. DESIGN CSS ---
 st.markdown(f"""
@@ -174,7 +184,26 @@ if aba == "🏠 Início":
                         st.success(f"Dose sugerida: {dose} U")
                         st.balloons()
 
-# --- DEMAIS ABAS MANTIDAS ---
+elif aba == "📊 Histórico":
+    st.header("📜 Histórico")
+    if not df_historico.empty:
+        pac_filtro = st.multiselect("Filtrar", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
+        df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
+        st.dataframe(df_filtrado, use_container_width=True)
+        
+        # --- BLOCO SEGURO PARA DOWNLOAD ---
+        try:
+            pdf_bytes = gerar_pdf_detalhado(df_filtrado, df_pacientes)
+            st.download_button(
+                label="📥 Baixar PDF",
+                data=pdf_bytes,
+                file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"Erro ao gerar PDF: {e}")
+
+# (Demais abas Pacientes, Alimentos, Pendentes, Perfil permanecem idênticas à Base 7.6)
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
     aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
@@ -196,15 +225,6 @@ elif aba == "👥 Pacientes":
             edit_p = st.selectbox("Selecionar Paciente", df_pacientes["Nome"].tolist())
             idx = df_pacientes.index[df_pacientes["Nome"] == edit_p][0]
             if st.button("🗑️ Remover Paciente"): df_pacientes = df_pacientes.drop(idx); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
-
-elif aba == "📊 Histórico":
-    st.header("📜 Histórico")
-    if not df_historico.empty:
-        pac_filtro = st.multiselect("Filtrar", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
-        df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
-        st.dataframe(df_filtrado, use_container_width=True)
-        pdf_data = gerar_pdf_detalhado(df_filtrado, df_pacientes)
-        st.download_button("📥 Baixar PDF", data=pdf_data, file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf", mime="application/pdf")
 
 elif aba == "🍎 Alimentos":
     st.header("🍎 Cardápio Detalhado")
