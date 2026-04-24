@@ -33,7 +33,7 @@ st.markdown(f"""
     /* Fundo Geral */
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
     
-    /* Botões Modernos */
+    /* Botões Modernos do Conteúdo */
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -50,38 +50,33 @@ st.markdown(f"""
         box-shadow: 0 6px 18px {st.session_state.cor_botao}66;
     }}
 
-    /* Barra Lateral */
+    /* BARRA LATERAL - LIMPEZA TOTAL */
     section[data-testid="stSidebar"] {{
         background-color: white !important;
         border-right: 1px solid #E5E7EB;
     }}
     
-    /* REMOVER RÓTULO 'NAVEGAR' E AJUSTAR MENU */
-    div[data-testid="stSidebarNav"] {{display: none;}} /* Remove navegação padrão se houver */
-    
+    /* Esconder o rótulo 'Menu_Navegacao' e qualquer label do rádio */
     div[data-testid="stRadio"] > label {{
-        display: none !important; /* ESCONDE O TEXTO 'NAVEGAR' */
+        display: none !important;
     }}
-
+    
     div[data-testid="stRadio"] > div {{
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-        padding-top: 0px;
+        padding-top: 0px !important;
     }}
 
+    /* Botões do Menu Lateral (Radio) */
     div[data-testid="stRadio"] label {{
         background-color: #F3F4F6 !important;
         border-radius: 12px !important;
         padding: 12px 0px !important;
-        margin-bottom: 8px;
+        margin-bottom: 8px !important;
         width: 100% !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         cursor: pointer;
-        border: 1px solid transparent;
+        border: 1px solid transparent !important;
     }}
     
     /* Esconde o círculo do rádio */
@@ -89,13 +84,19 @@ st.markdown(f"""
         display: none !important;
     }}
 
-    /* Estilo do Item Selecionado */
+    /* Item Selecionado no Menu */
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{
         background-color: {st.session_state.cor_botao} !important;
     }}
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{
         color: white !important;
         font-weight: bold;
+    }}
+    
+    /* Centralização dos textos nos botões laterais */
+    div[data-testid="stRadio"] label p {{
+        margin-bottom: 0px !important;
+        font-size: 16px;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -115,9 +116,9 @@ except:
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; font-size: 24px; color: #1F2937; margin-bottom: 25px; margin-top: 10px;'>Menu</h1>", unsafe_allow_html=True)
-    # label_visibility="collapsed" garante que o texto suma da interface
-    aba = st.radio("Menu_Navegacao", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    st.markdown("<h1 style='text-align: center; font-size: 26px; color: #1F2937; margin-bottom: 30px; margin-top: 20px;'>Menu</h1>", unsafe_allow_html=True)
+    # label_visibility="collapsed" é a chave para o "Menu_Navegacao" sumir
+    aba = st.radio("Seletor_Oculto", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- CONTEÚDO ---
 if aba == "🏠 Início":
