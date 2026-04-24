@@ -7,7 +7,6 @@ import os
 # --- 1. CONFIGURAÇÕES E ESTADO ---
 if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
 if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
-# Inicializa a sacola de refeição se não existir
 if "sacola_refeicao" not in st.session_state: st.session_state.sacola_refeicao = []
 
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
@@ -113,17 +112,16 @@ if aba == "🏠 Início":
         st.warning("⚠️ Cadastre um paciente primeiro.")
     else:
         with st.container():
-            # Dados Fixos da Refeição
             col_f1, col_f2 = st.columns(2)
             with col_f1: pac_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
             with col_f2: g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, value=110)
             
             st.divider()
             
-            # Adicionar Itens (O "+" que você pediu)
             st.subheader("➕ Adicionar Alimento")
             col_i1, col_i2 = st.columns([2, 1])
             with col_i1:
+                # Removido "?" do label
                 alimento_sel = st.selectbox("Selecione o Alimento", df_alimentos["Alimento"].tolist())
                 try:
                     linha_a = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel].iloc[0]
@@ -142,7 +140,6 @@ if aba == "🏠 Início":
                 })
                 st.rerun()
 
-            # Exibição da Sacola (O prato sendo montado)
             if st.session_state.sacola_refeicao:
                 st.markdown("### 📋 No seu prato:")
                 total_c_refeicao = 0.0
@@ -166,7 +163,6 @@ if aba == "🏠 Início":
 
                 if st.button("💉 Calcular e Salvar Refeição"):
                     dose = calcular_insulina(g_pre, 100, 50, total_c_refeicao, 15)
-                    # Gera a string com todos os itens para o histórico
                     itens_str = " + ".join([f"{i['Alimento']} ({i['Qtd']}{i['Unidade']})" for i in st.session_state.sacola_refeicao])
                     
                     novo = pd.DataFrame([{
@@ -175,30 +171,14 @@ if aba == "🏠 Início":
                         "Glicemia_Pre": g_pre,
                         "Carbos": round(total_c_refeicao, 1),
                         "Dose": dose,
-                        "Momento": itens_str[:50] + "...", # Corta se for muito longo
+                        "Momento": itens_str[:50] + "...", 
                         "Glicemia_Pos": 0
                     }])
                     df_historico = pd.concat([df_historico, novo], ignore_index=True)
                     df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.session_state.sacola_refeicao = [] # Limpa após salvar
+                    st.session_state.sacola_refeicao = []
                     st.success(f"Dose sugerida: {dose} U")
                     st.balloons()
-
-# --- Restante do código (Abas Pacientes, Histórico, Alimentos, etc.) permanece idêntico ao Base 6.0 ---
-elif aba == "🍎 Alimentos":
-    st.header("🍎 Cardápio Detalhado")
-    with st.form("novo_alimento_detalhado", clear_on_submit=True):
-        col_a1, col_a2 = st.columns(2)
-        with col_a1:
-            n_a = st.text_input("Nome do Alimento"); u_a = st.text_input("Unidade (Ex: colher, ml)"); g_a = st.number_input("Peso (g)", min_value=0.0)
-        with col_a2:
-            c_a = st.number_input("Carbos (g)", min_value=0.0); p_a = st.number_input("Proteína (g)", min_value=0.0); f_a = st.number_input("Gordura (g)", min_value=0.0)
-        if st.form_submit_button("Salvar no Cardápio"):
-            if n_a:
-                novo_item = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Proteina": p_a, "Gordura": f_a, "Gramas": g_a, "Unidade": u_a}])
-                df_alimentos = pd.concat([df_alimentos, novo_item], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False); st.rerun()
-    df_ed = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
-    if st.button("💾 Salvar Alterações"): df_ed.to_csv("alimentos.csv", index=False); st.success("Atualizado!")
 
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
@@ -208,8 +188,15 @@ elif aba == "👥 Pacientes":
     with aba_p[0]:
         with st.form("add_pac"):
             c1, c2 = st.columns(2)
-            with c1: n = st.text_input("Nome"); p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"]); cp = st.text_input("CPF")
-            with c2: s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue); tp_plano = st.selectbox("Plano", lista_planos); detalhe_plano = st.text_input("Dados do Plano")
+            with c1: 
+                n = st.text_input("Nome")
+                p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
+                cp = st.text_input("CPF")
+            with c2: 
+                s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue)
+                tp_plano = st.selectbox("Plano de Saúde", lista_planos)
+                # Removido "(Opcional)" do label
+                detalhe_plano = st.text_input("Dados do Plano")
             if st.form_submit_button("Cadastrar"):
                 if n:
                     np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": detalhe_plano, "Tipo_Plano": tp_plano, "SUS": ""}])
@@ -228,6 +215,21 @@ elif aba == "📊 Histórico":
         st.dataframe(df_filtrado, use_container_width=True)
         pdf_data = gerar_pdf_detalhado(df_filtrado, df_pacientes)
         st.download_button("📥 Baixar PDF", data=pdf_data, file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf", mime="application/pdf")
+
+elif aba == "🍎 Alimentos":
+    st.header("🍎 Cardápio Detalhado")
+    with st.form("novo_alimento_detalhado", clear_on_submit=True):
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            n_a = st.text_input("Nome do Alimento"); u_a = st.text_input("Unidade (Ex: colher, ml)"); g_a = st.number_input("Peso (g)", min_value=0.0)
+        with col_a2:
+            c_a = st.number_input("Carbos (g)", min_value=0.0); p_a = st.number_input("Proteína (g)", min_value=0.0); f_a = st.number_input("Gordura (g)", min_value=0.0)
+        if st.form_submit_button("Salvar no Cardápio"):
+            if n_a:
+                novo_item = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Proteina": p_a, "Gordura": f_a, "Gramas": g_a, "Unidade": u_a}])
+                df_alimentos = pd.concat([df_alimentos, novo_item], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False); st.rerun()
+    df_ed = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+    if st.button("💾 Salvar Alterações"): df_ed.to_csv("alimentos.csv", index=False); st.success("Atualizado!")
 
 elif aba == "📌 Pendentes":
     st.header("📌 Glicemia Pós-Refeição")
