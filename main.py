@@ -33,7 +33,7 @@ st.markdown(f"""
     /* Fundo Geral */
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
     
-    /* Botões Modernos Centrais */
+    /* Botões Modernos */
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -44,9 +44,6 @@ st.markdown(f"""
         font-weight: 600 !important;
         box-shadow: 0 4px 12px {st.session_state.cor_botao}44;
         transition: all 0.3s ease;
-        display: flex;
-        justify-content: center;
-        align-items: center;
     }}
     .stButton>button:hover {{
         transform: translateY(-2px);
@@ -59,42 +56,42 @@ st.markdown(f"""
         border-right: 1px solid #E5E7EB;
     }}
     
-    /* MENU LATERAL: ALINHAMENTO E TAMANHO IGUAL */
-    div[data-testid="stRadio"] {{
-        width: 100%;
+    /* REMOVER RÓTULO 'NAVEGAR' E AJUSTAR MENU */
+    div[data-testid="stSidebarNav"] {{display: none;}} /* Remove navegação padrão se houver */
+    
+    div[data-testid="stRadio"] > label {{
+        display: none !important; /* ESCONDE O TEXTO 'NAVEGAR' */
     }}
+
     div[data-testid="stRadio"] > div {{
         display: flex;
         flex-direction: column;
         align-items: center;
         width: 100%;
+        padding-top: 0px;
     }}
+
     div[data-testid="stRadio"] label {{
         background-color: #F3F4F6 !important;
         border-radius: 12px !important;
-        padding: 12px 0px !important; /* Ajuste no padding */
+        padding: 12px 0px !important;
         margin-bottom: 8px;
-        width: 100% !important; /* Força largura igual */
+        width: 100% !important;
         display: flex !important;
-        justify-content: center !important; /* Centraliza texto */
+        justify-content: center !important;
         align-items: center !important;
         cursor: pointer;
         border: 1px solid transparent;
     }}
     
-    /* Esconde o círculo original do rádio */
-    div[data-testid="stRadio"] label div[data-testid="stMarkdownContainer"] {{
-        width: 100%;
-        text-align: center;
-    }}
+    /* Esconde o círculo do rádio */
     div[data-testid="stRadio"] div[data-baseweb="radio"] > div:first-child {{
         display: none !important;
     }}
 
-    /* Item Selecionado */
+    /* Estilo do Item Selecionado */
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{
         background-color: {st.session_state.cor_botao} !important;
-        box-shadow: 0 4px 10px {st.session_state.cor_botao}44;
     }}
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{
         color: white !important;
@@ -118,8 +115,9 @@ except:
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; font-size: 24px; color: #1F2937; margin-bottom: 20px;'>Menu</h1>", unsafe_allow_html=True)
-    aba = st.radio("Navegar", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    st.markdown("<h1 style='text-align: center; font-size: 24px; color: #1F2937; margin-bottom: 25px; margin-top: 10px;'>Menu</h1>", unsafe_allow_html=True)
+    # label_visibility="collapsed" garante que o texto suma da interface
+    aba = st.radio("Menu_Navegacao", ["🏠 Início", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- CONTEÚDO ---
 if aba == "🏠 Início":
@@ -156,19 +154,14 @@ elif aba == "🍎 Alimentos":
 
 elif aba == "👤 Perfil":
     st.header("👤 Perfil")
-    
     with st.expander("🎨 Aparência e Temas"):
         c1, c2 = st.columns(2)
-        with c1:
-            nova_cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
-        with c2:
-            nova_cor_botao = st.color_picker("Botões", st.session_state.cor_botao)
-        
+        with c1: nova_cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
+        with c2: nova_cor_botao = st.color_picker("Botões", st.session_state.cor_botao)
         if st.button("Aplicar Cores"):
             st.session_state.cor_fundo = nova_cor_fundo
             st.session_state.cor_botao = nova_cor_botao
             st.rerun()
-
     st.divider()
     st.subheader("Configurações")
     st.text_input("Nome da Criança", "Minha Filha")
