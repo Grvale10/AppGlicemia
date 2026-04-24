@@ -37,15 +37,11 @@ TEMAS = {
 if "tema_selecionado" not in st.session_state:
     st.session_state.tema_selecionado = "Padrão BioCare (Vermelho)"
 
-# Atalhos para facilitar o uso no código
 cores = TEMAS[st.session_state.tema_selecionado]
 
 st.markdown(f"""
     <style>
-    .stApp {{
-        background-color: {cores['fundo']};
-        color: {cores['texto']};
-    }}
+    .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
         background: linear-gradient(45deg, {cores['primaria']}, #7a7a7a33);
@@ -96,4 +92,46 @@ if aba_config == "🏠 Home":
                 "Momento": momento, "Glicemia_Pos": 0
             }
             df_historico = pd.concat([df_historico, pd.DataFrame([novo_dado])], ignore_index=True)
-            df_historico.to_csv("dados_glicemia
+            df_historico.to_csv("dados_glicemia.csv", index=False)
+            st.success(f"Dose sugerida: {dose} U. Salvo!")
+
+    with tab2:
+        st.dataframe(df_historico, use_container_width=True)
+        if not df_historico.empty:
+            st.download_button("📥 Baixar PDF", data=gerar_pdf(df_historico), file_name="glicemia.pdf")
+
+elif aba_config == "📌 Pendentes":
+    st.header("📌 Glicemia 2h Após")
+    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if not pendentes.empty:
+        for idx, row in pendentes.iterrows():
+            with st.expander(f"{row['Momento']} - {row['Data']}"):
+                v_pos = st.number_input("Valor após 2h", key=f"p_{idx}")
+                if st.button("Confirmar", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v_pos
+                    df_historico.to_csv("dados_glicemia.csv", index=False)
+                    st.rerun()
+    else:
+        st.info("Nada pendente.")
+
+elif aba_config == "👤 Perfil & Temas":
+    st.header("👤 Perfil e Aparência")
+    st.subheader("🎨 Escolha um Tema")
+    escolha = st.selectbox("Selecione uma paleta de cores:", list(TEMAS.keys()), index=list(TEMAS.keys()).index(st.session_state.tema_selecionado))
+    if escolha != st.session_state.tema_selecionado:
+        st.session_state.tema_selecionado = escolha
+        st.rerun()
+
+elif aba_config == "🍎 Alimentos":
+    st.header("🍎 Gestão de Alimentos")
+    st.dataframe(df_alimentos, use_container_width=True)
+    with st.expander("➕ Adicionar Novo"):
+        n = st.text_input("Nome")
+        c = st.number_input("Carbo (g)", min_value=0)
+        u = st.text_input("Unidade")
+        if st.button("Salvar"):
+            novo = {"Alimento": n, "Carboidratos por Porção": c, "Unidade": u}
+            df_alimentos = pd.concat([df_alimentos, pd.DataFrame([novo])], ignore_index=True)
+            df_alimentos.to_csv("alimentos.csv", index=False)
+            st.success("Adicionado!")
+            st.rerun()
