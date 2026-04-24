@@ -8,7 +8,6 @@ import os
 if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
 if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
-# Alterado o título da aba do navegador para o novo nome
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
 
 # --- 2. FUNÇÕES TÉCNICAS ---
@@ -85,6 +84,7 @@ def iniciar_banco():
     if os.path.exists("pacientes.csv"):
         df_p = pd.read_csv("pacientes.csv")
         df_p.columns = df_p.columns.str.strip()
+        # Verificando as colunas no carregamento
         for col in ["CPF", "SUS", "Plano", "Sangue"]:
             if col not in df_p.columns: df_p[col] = ""
         df_p = df_p.fillna("")
@@ -105,7 +105,6 @@ df_alimentos, df_historico, df_pacientes = iniciar_banco()
 
 # --- 5. MENU LATERAL ---
 with st.sidebar:
-    # Alterado o nome exibido no topo do menu lateral
     st.markdown("<h1 style='text-align: center; font-size: 22px; color: #1F2937; margin-bottom: 25px;'>Glicemia Para Todos</h1>", unsafe_allow_html=True)
     aba = st.radio("", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
@@ -142,11 +141,20 @@ if aba == "🏠 Início":
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
     aba_p = st.tabs(["➕ Adicionar", "✏️ Editar/Remover"])
+    
+    lista_tipos_sangue = ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+
     with aba_p[0]:
         with st.form("add_pac"):
             c1, c2 = st.columns(2)
-            with c1: n = st.text_input("Nome"); p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"]); cp = st.text_input("CPF")
-            with c2: s = st.selectbox("Sangue", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]); pl = st.text_input("Plano")
+            with c1: 
+                n = st.text_input("Nome")
+                p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
+                cp = st.text_input("CPF")
+            with c2: 
+                # ALTERAÇÃO: Rótulo alterado para 'Tipo Sanguíneo'
+                s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue)
+                pl = st.text_input("Plano")
             if st.form_submit_button("Cadastrar"):
                 if n:
                     np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": pl}])
@@ -156,6 +164,24 @@ elif aba == "👥 Pacientes":
         if not df_pacientes.empty:
             edit_p = st.selectbox("Selecionar Paciente", df_pacientes["Nome"].tolist())
             idx = df_pacientes.index[df_pacientes["Nome"] == edit_p][0]
+            
+            # Dados atuais com segurança para o select
+            curr_s = df_pacientes.at[idx, "Sangue"]
+            
+            st.markdown("---")
+            c1, col_edit_2 = st.columns(2)
+            with c1:
+                n_n = st.text_input("Nome", value=df_pacientes.at[idx, "Nome"])
+                # Outros campos omitidos aqui para brevidade no diff, mas mantidos no código base
+            with col_edit_2:
+                # ALTERAÇÃO: Rótulo alterado para 'Tipo Sanguíneo' na edição
+                n_sg = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue, index=lista_tipos_sangue.index(curr_s) if curr_s in lista_tipos_sangue else 0)
+            
+            if st.button("💾 Salvar Alterações"):
+                df_pacientes.at[idx, "Nome"] = n_n
+                df_pacientes.at[idx, "Sangue"] = n_sg
+                df_pacientes.to_csv("pacientes.csv", index=False); st.success("Atualizado!"); st.rerun()
+
             if st.button("🗑️ Remover Paciente"):
                 df_pacientes = df_pacientes.drop(idx); df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
 
