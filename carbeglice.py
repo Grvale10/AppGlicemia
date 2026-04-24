@@ -57,3 +57,7 @@ def gerar_pdf(df):
         pdf.ln()
     
     return pdf.output(dest='S').encode('latin-1')
+def calcular_variacao(pre, pos):
+    if pos > 0:
+        return pos - pre
+    return None
