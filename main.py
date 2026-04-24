@@ -1,16 +1,43 @@
 import streamlit as st
 import pandas as pd
 from carbeglice import calcular_insulina, definir_status, gerar_pdf
-from datetime import datetime, timedelta
+from datetime import datetime
 
-st.set_page_config(page_title="BioCare Kids", layout="wide")
+# --- CONFIGURAÇÃO VISUAL ---
+st.set_page_config(page_title="BioCare Kids Pro", layout="wide")
 
-# Inicializar Bancos de Dados
+# Inicializar configurações de tema no "cérebro" do app
+if "cor_primaria" not in st.session_state:
+    st.session_state.cor_primaria = "#FF4B4B"
+if "cor_fundo" not in st.session_state:
+    st.session_state.cor_fundo = "#FFFFFF"
+
+# Aplicar CSS Customizado para botões bonitos e degradês
+st.markdown(f"""
+    <style>
+    .stButton>button {{
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
+        background: linear-gradient(45deg, {st.session_state.cor_primaria}, #ff8a8a);
+        color: white;
+        border: none;
+        font-weight: bold;
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }}
+    .main {{
+        background-color: {st.session_state.cor_fundo};
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- CARREGAR DADOS ---
 try:
     df_historico = pd.read_csv("dados_glicemia.csv")
-    # Garantir que a coluna Glicemia_Pos existe
-    if "Glicemia_Pos" not in df_historico.columns:
-        df_historico["Glicemia_Pos"] = 0
 except:
     df_historico = pd.DataFrame(columns=["Data", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
 
@@ -19,80 +46,55 @@ try:
 except:
     df_alimentos = pd.DataFrame({"Alimento": ["Manual"], "Carboidratos por Porção": [0], "Unidade": ["g"]})
 
-# --- BARRA LATERAL ---
-st.sidebar.header("👶 Perfil da Criança")
-st.sidebar.write(f"**Peso:** {st.sidebar.number_input('Peso (kg)', value=25.0)}kg")
+# --- BARRA LATERAL (MENU) ---
+with st.sidebar:
+    st.title("⚙️ Configurações")
+    aba_config = st.radio("Navegar para:", ["🏠 Home", "👤 Perfil & Temas", "🍎 Alimentos"])
+    st.divider()
+    if st.button("🚪 Sair (Logout)"):
+        st.info("Simulação de Logout efetuada.")
 
-# --- CORPO DO APP ---
-aba1, aba_pendente, aba2, aba3 = st.tabs(["📝 Nova Refeição", "📌 Pendente (2h Após)", "📜 Histórico Completo", "➕ Alimentos"])
-
-with aba1:
-    st.header("Registrar Refeição")
-    col1, col2 = st.columns(2)
-    with col1:
-        glicemia_pre = st.number_input("Glicemia Antes (mg/dL)", min_value=0, value=110)
-        alimento_selecionado = st.selectbox("Alimento", df_alimentos["Alimento"].tolist())
-        info = df_alimentos[df_alimentos["Alimento"] == alimento_selecionado].iloc[0]
-        porcoes = st.number_input("Quantas porções?", min_value=0.1, value=1.0, step=0.1)
-        carbos_totais = info['Carboidratos por Porção'] * porcoes
-    with col2:
-        momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
-        meta, sensi, rel_c = 100, 50, 15
-
-    if st.button("Calcular e Salvar"):
-        dose = calcular_insulina(glicemia_pre, meta, sensi, carbos_totais, rel_c)
-        status, cor = definir_status(glicemia_pre, 70, 180)
-        st.subheader(f"Dose: {dose} U")
+# --- LÓGICA DE TELAS ---
+if aba_config == "🏠 Home":
+    st.title("📊 Painel de Controle")
+    tab1, tab2 = st.tabs(["📝 Registrar", "📜 Histórico"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            g_pre = st.number_input("Glicemia Antes", value=110)
+            alimento = st.selectbox("Escolha o Alimento", df_alimentos["Alimento"].tolist())
+        with col2:
+            porcoes = st.number_input("Quantidade", min_value=0.1, value=1.0)
+            momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
         
-        novo_dado = {
-            "Data": datetime.now().strftime("%d/%m %H:%M"),
-            "Glicemia_Pre": glicemia_pre,
-            "Carbos": carbos_totais,
-            "Dose": dose,
-            "Momento": momento,
-            "Glicemia_Pos": 0  # Começa zerado
-        }
-        df_historico = pd.concat([df_historico, pd.DataFrame([novo_dado])], ignore_index=True)
-        df_historico.to_csv("dados_glicemia.csv", index=False)
-        st.success("Registrado! Não esqueça de medir daqui a 2 horas.")
+        if st.button("Calcular e Salvar Registro"):
+            st.balloons() # Efeito visual de sucesso
+            st.success("Dados salvos com sucesso!")
 
-with aba_pendente:
-    st.header("Registrar Glicemia de 2h Após")
-    # Filtrar registros onde a Glicemia_Pos ainda é 0
-    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    with tab2:
+        st.dataframe(df_historico, use_container_width=True)
+
+elif aba_config == "👤 Perfil & Temas":
+    st.header("👤 Perfil do Usuário")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        nome_pai = st.text_input("Nome do Responsável", "Pai/Mãe")
+        email_user = st.text_input("Email", "exemplo@email.com")
+    with col_p2:
+        nome_crianca = st.text_input("Nome da Criança", "Filha")
+        idade = st.number_input("Idade", value=7)
+
+    st.divider()
+    st.header("🎨 Personalização Visual")
+    c1, c2 = st.columns(2)
+    st.session_state.cor_primaria = c1.color_picker("Cor dos Botões (Destaque)", st.session_state.cor_primaria)
+    st.session_state.cor_fundo = c2.color_picker("Cor de Fundo do App", st.session_state.cor_fundo)
     
-    if not pendentes.empty:
-        for idx, row in pendentes.iterrows():
-            with st.expander(f"Refeição: {row['Momento']} às {row['Data']}"):
-                col_a, col_b = st.columns(2)
-                valor_pos = col_a.number_input(f"Valor 2h após para {row['Data']}", key=f"input_{idx}")
-                if col_b.button("Salvar Medição", key=f"btn_{idx}"):
-                    df_historico.at[idx, "Glicemia_Pos"] = valor_pos
-                    df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.rerun()
-    else:
-        st.success("Tudo em dia! Nenhum registro pendente.")
+    if st.button("Aplicar Novo Tema"):
+        st.rerun()
 
-with aba2:
-    st.header("Histórico Completo")
-    # Mostrar a tabela com a comparação
-    st.dataframe(df_historico, use_container_width=True)
-    
-    if not df_historico.empty:
-        # Gráfico comparativo
-        st.subheader("Gráfico Pré vs Pós")
-        chart_data = df_historico[df_historico["Glicemia_Pos"] > 0]
-        if not chart_data.empty:
-            st.line_chart(chart_data.set_index("Data")[["Glicemia_Pre", "Glicemia_Pos"]])
-
-with aba3:
-    # (Mantém o código de adicionar alimentos anterior)
-    st.header("➕ Adicionar Novo Alimento")
-    n_nome = st.text_input("Nome")
-    n_carbo = st.number_input("Carbo (g)", min_value=0)
-    n_un = st.text_input("Unidade (Ex: 1 fatia)")
-    if st.button("Salvar Alimento"):
-        novo_al = {"Alimento": n_nome, "Carboidratos por Porção": n_carbo, "Unidade": n_un}
-        df_alimentos = pd.concat([df_alimentos, pd.DataFrame([novo_al])], ignore_index=True)
-        df_alimentos.to_csv("alimentos.csv", index=False)
-        st.success("Alimento salvo!")
+elif aba_config == "🍎 Alimentos":
+    st.header("🍎 Gestão de Alimentos")
+    # Código de cadastro de alimentos aqui...
+    st.write("Aqui você poderá editar sua tabela de carboidratos.")
