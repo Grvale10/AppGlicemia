@@ -39,15 +39,31 @@ if "tema_selecionado" not in st.session_state:
 
 cores = TEMAS[st.session_state.tema_selecionado]
 
+# --- CSS CUSTOMIZADO (COM CORREÇÃO DOS RADIO BUTTONS) ---
 st.markdown(f"""
     <style>
+    /* Cor de fundo e texto geral */
     .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
+    
+    /* Botões principais bonitos e degradês */
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
         background: linear-gradient(45deg, {cores['primaria']}, #7a7a7a33);
         color: white; border: none; font-weight: bold; transition: 0.3s;
     }}
     .stButton>button:hover {{ transform: scale(1.02); box-shadow: 0 4px 15px {cores['primaria']}44; }}
+    
+    /* 🎯 CORREÇÃO: Mudar a cor dos círculos do Menu (Radio Buttons) 🎯 */
+    /* Mudar a cor do círculo quando SELECIONADO */
+    div[data-testid="stRadio"] label[data-baseweb="radio"] div div {{
+        background-color: {cores['primaria']} !important;
+        border-color: {cores['primaria']} !important;
+    }}
+    
+    /* Mudar a cor da borda quando NÃO selecionado */
+    div[data-testid="stRadio"] label[data-baseweb="radio"] div {{
+        border-color: {cores['primaria']}55 !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -65,7 +81,7 @@ except:
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.title("📟 BioCare Kids")
-    aba_config = st.radio("Navegar para:", ["🏠 Home", "📌 Pendentes", "👤 Perfil & Temas", "🍎 Alimentos"])
+    aba_config = st.radio("Navegar para:", ["🏠 Home", "📌 Pendentes", "📜 Histórico", "⚙️ Perfil & Temas", "🍎 Alimentos"])
     st.divider()
 
 # --- LÓGICA DE TELAS ---
