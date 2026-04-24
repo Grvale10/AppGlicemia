@@ -24,19 +24,16 @@ def gerar_pdf(df):
     pdf.ln(5)
     pdf.set_font("Arial", size=10)
     for _, row in df.iterrows():
-        texto = f"{row['Data']} | Glic: {row['Glicemia_Pre']} | Dose: {row['Dose']} U | Momento: {row['Momento']}"
+        paciente = row.get('Paciente', 'Geral')
+        texto = f"{row['Data']} | {paciente} | Glic: {row['Glicemia_Pre']} | Dose: {row['Dose']} U"
         pdf.cell(190, 8, texto.encode('latin-1', 'replace').decode('latin-1'), ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. DESIGN CSS (MENU LIMPO E BOTÕES CENTRAIS) ---
+# --- 3. DESIGN CSS ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {st.session_state.cor_fundo}; }}
-    
-    /* Remove o rótulo do menu lateral (O famoso empecílio) */
     [data-testid="stSidebar"] [data-testid="stRadio"] > label {{ display: none !important; }}
-
-    /* Botões do Menu Lateral */
     div[data-testid="stRadio"] div[role="radiogroup"] label {{
         background-color: #F3F4F6 !important;
         border-radius: 12px !important;
@@ -48,27 +45,16 @@ st.markdown(f"""
         align-items: center !important;
         border: 1px solid transparent !important;
     }}
-    
-    /* Texto dos botões laterais */
     div[data-testid="stRadio"] div[role="radiogroup"] label p {{
-        color: #1F2937 !important;
-        font-size: 16px !important;
-        margin: 0px !important;
-        display: block !important;
+        color: #1F2937 !important; font-size: 16px !important; margin: 0px !important; display: block !important;
     }}
-
-    /* Esconde o círculo do rádio original */
     div[data-testid="stRadio"] div[data-baseweb="radio"] > div:first-child {{ display: none !important; }}
-
-    /* Botão selecionado */
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{
         background-color: {st.session_state.cor_botao} !important;
     }}
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{
         color: white !important; font-weight: bold !important;
     }}
-
-    /* Botões Gerais de Ação */
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
         background-color: {st.session_state.cor_botao} !important;
@@ -77,123 +63,125 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. BANCO DE DADOS (COM PROTEÇÃO TOTAL CONTRA KEYERROR) ---
+# --- 4. BANCO DE DADOS (ALIMENTOS, HISTÓRICO E PACIENTES) ---
 def iniciar_banco():
     # Alimentos
     if os.path.exists("alimentos.csv"):
         df_a = pd.read_csv("alimentos.csv")
         df_a.columns = df_a.columns.str.strip()
-        if "Alimento" not in df_a.columns: df_a["Alimento"] = "Item"
-        if "Carbos" not in df_a.columns: df_a["Carbos"] = 0.0
     else:
         df_a = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz Branco"], "Carbos": [28.0, 15.0]})
+
+    # Pacientes (Novo!)
+    if os.path.exists("pacientes.csv"):
+        df_p = pd.read_csv("pacientes.csv")
+    else:
+        df_p = pd.DataFrame(columns=["Nome", "Parentesco"])
 
     # Histórico
     if os.path.exists("dados_glicemia.csv"):
         df_h = pd.read_csv("dados_glicemia.csv")
         df_h.columns = df_h.columns.str.strip()
-        # Garante que a coluna de glicemia pós exista (evita erro na aba Pendentes)
         if "Glicemia_Pos" not in df_h.columns: df_h["Glicemia_Pos"] = 0
+        if "Paciente" not in df_h.columns: df_h["Paciente"] = "Não Definido"
     else:
-        df_h = pd.DataFrame(columns=["Data", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
+        df_h = pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
     
-    return df_a, df_h
+    return df_a, df_h, df_p
 
-df_alimentos, df_historico = iniciar_banco()
+df_alimentos, df_historico, df_pacientes = iniciar_banco()
 
 # --- 5. MENU LATERAL ---
 with st.sidebar:
     st.markdown("<h1 style='text-align: center; font-size: 24px; color: #1F2937; margin-bottom: 25px;'>Menu</h1>", unsafe_allow_html=True)
-    aba = st.radio("SELETOR_LATERAL", ["🏠 Início", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    aba = st.radio("", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- 6. TELAS ---
 
 if aba == "🏠 Início":
     st.header("📝 Registrar Refeição")
-    col1, col2 = st.columns(2)
-    with col1:
-        # RECUPERADOS OS TEXTOS DOS (?)
-        g_pre = st.number_input(
-            "Glicemia Atual (mg/dL)", 
-            min_value=20, value=110, 
-            help="Valor medido no glicômetro antes de iniciar a refeição."
-        )
-        momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
-    with col2:
-        lista_alimentos = df_alimentos["Alimento"].tolist()
-        alimento_sel = st.selectbox("Alimento Principal", lista_alimentos)
-        
-        # Busca segura
-        try:
-            val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
-        except:
-            val_c = 0.0
-            
-        qtd = st.number_input(
-            "Quantidade", 
-            min_value=0.1, value=1.0, 
-            help="Quantidade do alimento escolhido (ex: 1 pão, 2 colheres, etc)."
-        )
-        total_c = round(float(val_c) * qtd, 1)
-        st.info(f"Total de Carboidratos: {total_c}g")
+    if df_pacientes.empty:
+        st.warning("⚠️ Primeiro, cadastre um paciente na aba 'Pacientes'.")
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            paciente_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
+            g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, value=110, help="Valor medido antes de comer.")
+            momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
+        with col2:
+            alimento_sel = st.selectbox("Alimento Principal", df_alimentos["Alimento"].tolist())
+            try:
+                val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
+            except:
+                val_c = 0.0
+            qtd = st.number_input("Quantidade", min_value=0.1, value=1.0, help="Quantidade/porção consumida.")
+            total_c = round(float(val_c) * qtd, 1)
+            st.info(f"Total Carboidratos: {total_c}g")
 
-    if st.button("Calcular e Salvar"):
-        # Cálculo baseado nos parâmetros padrão (Meta 100, Sens 50, Rel 15)
-        dose = calcular_insulina(g_pre, 100, 50, total_c, 15)
-        novo = pd.DataFrame([{
-            "Data": datetime.now().strftime("%d/%m %H:%M"), 
-            "Glicemia_Pre": g_pre, 
-            "Carbos": total_c, 
-            "Dose": dose, 
-            "Momento": momento, 
-            "Glicemia_Pos": 0
-        }])
-        df_historico = pd.concat([df_historico, novo], ignore_index=True)
-        df_historico.to_csv("dados_glicemia.csv", index=False)
-        st.success(f"Dose sugerida: {dose} U. Registro salvo com sucesso!")
+        if st.button("Calcular e Salvar"):
+            dose = calcular_insulina(g_pre, 100, 50, total_c, 15)
+            novo = pd.DataFrame([{
+                "Data": datetime.now().strftime("%d/%m %H:%M"), 
+                "Paciente": paciente_sel,
+                "Glicemia_Pre": g_pre, 
+                "Carbos": total_c, 
+                "Dose": dose, 
+                "Momento": momento, 
+                "Glicemia_Pos": 0
+            }])
+            df_historico = pd.concat([df_historico, novo], ignore_index=True)
+            df_historico.to_csv("dados_glicemia.csv", index=False)
+            st.success(f"Dose para {paciente_sel}: {dose} U. Salvo!")
+
+elif aba == "👥 Pacientes":
+    st.header("👥 Gestão de Pacientes")
+    
+    with st.expander("➕ Adicionar Novo Paciente", expanded=True):
+        nome_p = st.text_input("Nome do Paciente")
+        grau_p = st.selectbox("Grau de Parentesco", ["Filho", "Filha", "Cônjuge", "Pai/Mãe", "Outro"])
+        if st.button("Salvar Paciente"):
+            if nome_p:
+                novo_p = pd.DataFrame([{"Nome": nome_p, "Parentesco": grau_p}])
+                df_pacientes = pd.concat([df_pacientes, novo_p], ignore_index=True)
+                df_pacientes.to_csv("pacientes.csv", index=False)
+                st.success(f"{nome_p} adicionado com sucesso!")
+                st.rerun()
+            else:
+                st.error("Por favor, digite o nome.")
+    
+    st.subheader("Pacientes Cadastrados")
+    st.dataframe(df_pacientes, use_container_width=True)
 
 elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós-Refeição (2h)")
-    # Filtra apenas o que precisa de medição 2h depois
+    st.header("📌 Glicemia Pós-Refeição")
     pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
     if not pendentes.empty:
         for idx, row in pendentes.iterrows():
-            with st.expander(f"{row['Momento']} - {row['Data']}"):
-                v_pos = st.number_input(
-                    "Valor 2h após (mg/dL)", 
-                    key=f"p_{idx}", 
-                    help="Meça a glicemia 2 horas após a última refeição registrada."
-                )
-                if st.button("Salvar Medição", key=f"b_{idx}"):
+            with st.expander(f"{row.get('Paciente', 'Geral')} - {row['Momento']} ({row['Data']})"):
+                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}", help="Meça 2h após a refeição.")
+                if st.button("Confirmar Medição", key=f"b_{idx}"):
                     df_historico.at[idx, "Glicemia_Pos"] = v_pos
                     df_historico.to_csv("dados_glicemia.csv", index=False)
                     st.rerun()
     else:
-        st.info("Não há medições pendentes no momento.")
+        st.info("Nada pendente.")
 
 elif aba == "📊 Histórico":
-    st.header("📜 Histórico de Medições")
+    st.header("📜 Histórico Geral")
     st.dataframe(df_historico, use_container_width=True)
     if not df_historico.empty:
-        st.download_button("📥 Baixar Relatório PDF", data=gerar_pdf(df_historico), file_name="relatorio_glicemia.pdf")
+        st.download_button("📥 Exportar PDF", data=gerar_pdf(df_historico), file_name="historico.pdf")
 
 elif aba == "🍎 Alimentos":
-    st.header("🍎 Gerenciar Alimentos")
-    st.write("Edite os valores abaixo e clique em salvar:")
+    st.header("🍎 Alimentos")
     df_novo = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
     if st.button("Salvar Tabela"):
         df_novo.to_csv("alimentos.csv", index=False)
-        st.success("Tabela de alimentos atualizada!")
+        st.success("Tabela atualizada!")
 
 elif aba == "👤 Perfil":
-    st.header("👤 Perfil da Criança")
-    # Submenu de Temas organizado como pedido
+    st.header("👤 Configurações do App")
     with st.expander("🎨 Temas e Aparência"):
-        st.session_state.cor_fundo = st.color_picker("Cor de Fundo", st.session_state.cor_fundo)
-        st.session_state.cor_botao = st.color_picker("Cor dos Botões", st.session_state.cor_botao)
+        st.session_state.cor_fundo = st.color_picker("Fundo", st.session_state.cor_fundo)
+        st.session_state.cor_botao = st.color_picker("Botões", st.session_state.cor_botao)
         if st.button("Aplicar Visual"): st.rerun()
-    
-    st.divider()
-    st.subheader("Configurações Gerais")
-    st.text_input("Nome", "Minha Filha")
-    st.number_input("Idade", value=5)
