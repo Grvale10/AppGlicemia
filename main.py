@@ -38,32 +38,40 @@ if "tema_selecionado" not in st.session_state:
 
 cores = TEMAS[st.session_state.tema_selecionado]
 
-# --- CSS REVISADO (FOCO APENAS NOS CÍRCULOS E DETALHES) ---
+# --- CSS ULTRA-ESPECÍFICO (SEM FAIXAS NO MENU) ---
 st.markdown(f"""
     <style>
-    /* Fundo Geral */
     .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
     
-    /* Botões: Apenas o fundo e o efeito de clique */
+    /* Botões */
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
         background-color: {cores['primaria']};
         color: white; border: none; font-weight: bold; transition: 0.3s;
     }}
-    .stButton>button:hover {{ opacity: 0.8; transform: translateY(-2px); }}
-
-    /* CORREÇÃO DOS CÍRCULOS (RADIO BUTTONS) */
-    /* Isso garante que APENAS a bolinha interna mude de cor quando selecionada */
-    div[data-testid="stRadio"] input[type="radio"]:checked + div {{
-        background-color: {cores['primaria']} !important;
-    }}
     
-    /* Cor da borda da bolinha */
+    /* REMOVER FAIXA DO MENU E PINTAR APENAS O CÍRCULO */
+    /* Remove o fundo cinza/colorido de quando selecionado */
+    div[data-testid="stRadio"] label {{
+        background-color: transparent !important;
+    }}
+
+    /* Estilo do Círculo de Seleção */
     div[data-testid="stRadio"] div[role="radiogroup"] div[data-baseweb="radio"] > div:first-child {{
         border-color: {cores['primaria']} !important;
     }}
+    
+    /* Pintar a bolinha interna de preenchimento */
+    div[data-testid="stRadio"] input[type="radio"]:checked + div {{
+        background-color: {cores['primaria']} !important;
+    }}
 
-    /* Cor da linha das Abas (Tabs) */
+    /* Cor do texto do item selecionado no menu */
+    div[data-testid="stRadio"] label[data-baseweb="radio"] div:nth-child(2) p {{
+        color: {cores['texto']} !important;
+    }}
+
+    /* Ajuste de Abas */
     button[data-baseweb="tab"]:hover {{ color: {cores['primaria']} !important; }}
     button[aria-selected="true"] {{ 
         color: {cores['primaria']} !important;
@@ -86,6 +94,7 @@ except:
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.title("📟 BioCare Kids")
+    # Menu lateral sem preenchimento de fundo
     aba_config = st.radio("Navegar para:", ["🏠 Home", "📌 Pendentes", "📜 Histórico", "⚙️ Perfil & Temas", "🍎 Alimentos"])
     st.divider()
 
@@ -135,18 +144,33 @@ elif aba_config == "📌 Pendentes":
     else:
         st.info("Nada pendente.")
 
-elif aba_config == "👤 Perfil & Temas":
-    st.header("👤 Perfil e Aparência")
-    st.subheader("🎨 Escolha um Tema")
-    escolha = st.selectbox("Selecione uma paleta de cores:", list(TEMAS.keys()), index=list(TEMAS.keys()).index(st.session_state.tema_selecionado))
+# CONTEÚDO RESTAURADO ABAIXO:
+elif aba_config == "⚙️ Perfil & Temas":
+    st.header("⚙️ Configurações de Aparência")
+    st.subheader("🎨 Escolha um Tema Profissional")
+    
+    escolha = st.selectbox(
+        "Selecione uma paleta de cores para o app:", 
+        list(TEMAS.keys()), 
+        index=list(TEMAS.keys()).index(st.session_state.tema_selecionado)
+    )
+    
     if escolha != st.session_state.tema_selecionado:
         st.session_state.tema_selecionado = escolha
         st.rerun()
 
+    st.divider()
+    st.subheader("👤 Dados da Criança")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.text_input("Nome da Criança", "Minha Filha")
+    with c2:
+        st.number_input("Idade", value=5)
+
 elif aba_config == "🍎 Alimentos":
     st.header("🍎 Gestão de Alimentos")
     st.dataframe(df_alimentos, use_container_width=True)
-    with st.expander("➕ Adicionar Novo"):
+    with st.expander("➕ Adicionar Novo Alimento"):
         n = st.text_input("Nome")
         c = st.number_input("Carbo (g)", min_value=0)
         u = st.text_input("Unidade")
