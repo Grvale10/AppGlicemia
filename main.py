@@ -113,22 +113,22 @@ if aba == "🏠 Início":
     else:
         with st.container():
             col_f1, col_f2 = st.columns(2)
-            with col_f1: pac_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
-            with col_f2: g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, value=110)
+            with col_f1: pac_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist(), help="Selecione quem fará a refeição.")
+            with col_f2: g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, value=110, help="Valor medido no glicosímetro antes de comer.")
             
             st.divider()
             
             st.subheader("➕ Adicionar Alimento")
             col_i1, col_i2 = st.columns([2, 1])
             with col_i1:
-                alimento_sel = st.selectbox("Selecione o Alimento", df_alimentos["Alimento"].tolist())
+                alimento_sel = st.selectbox("Selecione o Alimento", df_alimentos["Alimento"].tolist(), help="Escolha o item do seu cardápio cadastrado.")
                 try:
                     linha_a = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel].iloc[0]
                     val_c = linha_a["Carbos"]; uni_a = linha_a["Unidade"]
                 except:
                     val_c = 0.0; uni_a = "un"
             with col_i2:
-                qtd = st.number_input(f"Qtd ({uni_a})", min_value=0.1, value=1.0)
+                qtd = st.number_input(f"Qtd ({uni_a})", min_value=0.1, value=1.0, help="Quantidade baseada na medida cadastrada (colher, gramas, etc).")
             
             if st.button("➕ Adicionar à Refeição"):
                 st.session_state.sacola_refeicao.append({
@@ -193,9 +193,8 @@ elif aba == "👥 Pacientes":
                 cp = st.text_input("CPF")
             with c2: 
                 s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue)
-                tp_plano = st.selectbox("Plano de Saúde", lista_planos)
-                # Termo (Opcional) recolocado conforme solicitado
-                detalhe_plano = st.text_input("Dados do Plano (Opcional)")
+                tp_plano = st.selectbox("Plano de Saúde", lista_planos, help="Selecione o tipo de cobertura do paciente.")
+                detalhe_plano = st.text_input("Dados do Plano (Opcional)", help="Número da carteirinha ou nome da seguradora.")
             if st.form_submit_button("Cadastrar"):
                 if n:
                     np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": detalhe_plano, "Tipo_Plano": tp_plano, "SUS": ""}])
@@ -220,9 +219,12 @@ elif aba == "🍎 Alimentos":
     with st.form("novo_alimento_detalhado", clear_on_submit=True):
         col_a1, col_a2 = st.columns(2)
         with col_a1:
-            n_a = st.text_input("Nome do Alimento"); u_a = st.text_input("Unidade (Ex: colher, ml)"); g_a = st.number_input("Peso (g)", min_value=0.0)
+            n_a = st.text_input("Nome do Alimento")
+            u_a = st.text_input("Unidade", help="Ex: colher de sopa, ml, xícara, unidade.")
+            g_a = st.number_input("Peso (g)", min_value=0.0, help="Peso total da porção em gramas.")
         with col_a2:
-            c_a = st.number_input("Carbos (g)", min_value=0.0); p_a = st.number_input("Proteína (g)", min_value=0.0); f_a = st.number_input("Gordura (g)", min_value=0.0)
+            c_a = st.number_input("Carbos (g)", min_value=0.0, help="Quantidade de carboidratos por unidade de medida.")
+            p_a = st.number_input("Proteína (g)", min_value=0.0); f_a = st.number_input("Gordura (g)", min_value=0.0)
         if st.form_submit_button("Salvar no Cardápio"):
             if n_a:
                 novo_item = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Proteina": p_a, "Gordura": f_a, "Gramas": g_a, "Unidade": u_a}])
@@ -236,7 +238,7 @@ elif aba == "📌 Pendentes":
     if not pendentes.empty:
         for idx, row in pendentes.iterrows():
             with st.expander(f"{row['Paciente']} - {row['Data']}"):
-                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}")
+                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}", help="Insira a glicemia medida 2 horas após a refeição.")
                 if st.button("Confirmar", key=f"b_{idx}"):
                     df_historico.at[idx, "Glicemia_Pos"] = v_pos; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
 
