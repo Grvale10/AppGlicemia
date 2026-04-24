@@ -25,7 +25,6 @@ def gerar_pdf(df):
 # --- CONFIGURAÇÃO VISUAL E TEMAS ---
 st.set_page_config(page_title="BioCare Kids Pro", layout="wide")
 
-# Dicionário de Temas Profissionais
 TEMAS = {
     "Padrão BioCare (Vermelho)": {"primaria": "#FF4B4B", "fundo": "#FFFFFF", "texto": "#31333F"},
     "Azul Oceano": {"primaria": "#007BFF", "fundo": "#F0F2F6", "texto": "#1A1A1A"},
@@ -39,30 +38,36 @@ if "tema_selecionado" not in st.session_state:
 
 cores = TEMAS[st.session_state.tema_selecionado]
 
-# --- CSS CUSTOMIZADO (COM CORREÇÃO DOS RADIO BUTTONS) ---
+# --- CSS REVISADO (FOCO APENAS NOS CÍRCULOS E DETALHES) ---
 st.markdown(f"""
     <style>
-    /* Cor de fundo e texto geral */
+    /* Fundo Geral */
     .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
     
-    /* Botões principais bonitos e degradês */
+    /* Botões: Apenas o fundo e o efeito de clique */
     .stButton>button {{
         width: 100%; border-radius: 12px; height: 3.5em;
-        background: linear-gradient(45deg, {cores['primaria']}, #7a7a7a33);
+        background-color: {cores['primaria']};
         color: white; border: none; font-weight: bold; transition: 0.3s;
     }}
-    .stButton>button:hover {{ transform: scale(1.02); box-shadow: 0 4px 15px {cores['primaria']}44; }}
-    
-    /* 🎯 CORREÇÃO: Mudar a cor dos círculos do Menu (Radio Buttons) 🎯 */
-    /* Mudar a cor do círculo quando SELECIONADO */
-    div[data-testid="stRadio"] label[data-baseweb="radio"] div div {{
+    .stButton>button:hover {{ opacity: 0.8; transform: translateY(-2px); }}
+
+    /* CORREÇÃO DOS CÍRCULOS (RADIO BUTTONS) */
+    /* Isso garante que APENAS a bolinha interna mude de cor quando selecionada */
+    div[data-testid="stRadio"] input[type="radio"]:checked + div {{
         background-color: {cores['primaria']} !important;
-        border-color: {cores['primaria']} !important;
     }}
     
-    /* Mudar a cor da borda quando NÃO selecionado */
-    div[data-testid="stRadio"] label[data-baseweb="radio"] div {{
-        border-color: {cores['primaria']}55 !important;
+    /* Cor da borda da bolinha */
+    div[data-testid="stRadio"] div[role="radiogroup"] div[data-baseweb="radio"] > div:first-child {{
+        border-color: {cores['primaria']} !important;
+    }}
+
+    /* Cor da linha das Abas (Tabs) */
+    button[data-baseweb="tab"]:hover {{ color: {cores['primaria']} !important; }}
+    button[aria-selected="true"] {{ 
+        color: {cores['primaria']} !important;
+        border-bottom-color: {cores['primaria']} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
