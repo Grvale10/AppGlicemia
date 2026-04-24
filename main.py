@@ -121,7 +121,6 @@ if aba == "🏠 Início":
             st.subheader("➕ Adicionar Alimento")
             col_i1, col_i2 = st.columns([2, 1])
             with col_i1:
-                # Removido "?" do label
                 alimento_sel = st.selectbox("Selecione o Alimento", df_alimentos["Alimento"].tolist())
                 try:
                     linha_a = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel].iloc[0]
@@ -195,8 +194,8 @@ elif aba == "👥 Pacientes":
             with c2: 
                 s = st.selectbox("Tipo Sanguíneo", lista_tipos_sangue)
                 tp_plano = st.selectbox("Plano de Saúde", lista_planos)
-                # Removido "(Opcional)" do label
-                detalhe_plano = st.text_input("Dados do Plano")
+                # Termo (Opcional) recolocado conforme solicitado
+                detalhe_plano = st.text_input("Dados do Plano (Opcional)")
             if st.form_submit_button("Cadastrar"):
                 if n:
                     np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": detalhe_plano, "Tipo_Plano": tp_plano, "SUS": ""}])
