@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
-import io
 
 # --- FUNÇÕES DE APOIO ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
+    # Regra de correção + Regra de carboidratos
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
     return round(correcao + dose_carbo, 1)
@@ -14,75 +14,43 @@ def gerar_pdf(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "Relatorio de Glicemia - BioCare Kids", ln=True, align='C')
-    pdf.ln(10)
+    pdf.cell(190, 10, "Relatório Mensal de Glicemia", ln=True, align='C')
+    pdf.ln(5)
+    
+    # Resumo Estatístico
+    if not df.empty:
+        media = round(df['Glicemia_Pre'].mean(), 1)
+        total_carbo = df['Carbos'].sum()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(190, 8, f"Média de Glicemia Pré: {media} mg/dL", ln=True)
+        pdf.cell(190, 8, f"Total de Carboidratos consumidos: {total_carbo}g", ln=True)
+        pdf.ln(10)
+
+    # Tabela
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(35, 8, "Data/Hora", 1)
+    pdf.cell(30, 8, "Momento", 1)
+    pdf.cell(30, 8, "Glic. Pré", 1)
+    pdf.cell(30, 8, "Carbos(g)", 1)
+    pdf.cell(30, 8, "Dose (U)", 1)
+    pdf.cell(30, 8, "Glic. Pós", 1)
+    pdf.ln()
+
     pdf.set_font("Arial", size=10)
-    for i, row in df.iterrows():
-        texto = f"{row['Data']} | {row['Momento']} | Glicemia: {row['Glicemia_Pre']} | Dose: {row['Dose']} U"
-        pdf.cell(190, 8, texto, ln=True)
+    for _, row in df.iterrows():
+        pdf.cell(35, 8, str(row['Data']), 1)
+        pdf.cell(30, 8, str(row['Momento']), 1)
+        pdf.cell(30, 8, str(row['Glicemia_Pre']), 1)
+        pdf.cell(30, 8, str(row['Carbos']), 1)
+        pdf.cell(30, 8, str(row['Dose']), 1)
+        pdf.cell(30, 8, str(row['Glicemia_Pos']), 1)
+        pdf.ln()
+        
     return pdf.output(dest='S').encode('latin-1')
 
-# --- CONFIGURAÇÃO VISUAL E TEMAS ---
-st.set_page_config(page_title="BioCare Kids Pro", layout="wide")
+# --- CONFIGURAÇÃO E DADOS ---
+st.set_page_config(page_title="BioCare Kids", layout="wide")
 
-TEMAS = {
-    "Padrão BioCare (Vermelho)": {"primaria": "#FF4B4B", "fundo": "#FFFFFF", "texto": "#31333F"},
-    "Azul Oceano": {"primaria": "#007BFF", "fundo": "#F0F2F6", "texto": "#1A1A1A"},
-    "Verde Saúde": {"primaria": "#28A745", "fundo": "#F8FFF9", "texto": "#1E3924"},
-    "Modo Noturno": {"primaria": "#BB86FC", "fundo": "#0E1117", "texto": "#FAFAFA"},
-    "Rosa Suave": {"primaria": "#E83E8C", "fundo": "#FFF5F8", "texto": "#3D0A1B"}
-}
-
-if "tema_selecionado" not in st.session_state:
-    st.session_state.tema_selecionado = "Padrão BioCare (Vermelho)"
-
-cores = TEMAS[st.session_state.tema_selecionado]
-
-# --- CSS REVISADO: SEM FAIXAS, APENAS DETALHES ---
-st.markdown(f"""
-    <style>
-    .stApp {{ background-color: {cores['fundo']}; color: {cores['texto']}; }}
-    
-    /* Botões: Cor sólida e arredondada */
-    .stButton>button {{
-        width: 100%; border-radius: 10px; height: 3em;
-        background-color: {cores['primaria']} !important;
-        color: white !important; border: none; font-weight: bold;
-    }}
-
-    /* RADIO BUTTONS (MENU LATERAL) */
-    /* Remove qualquer cor de fundo das labels (evita as faixas vermelhas das fotos) */
-    div[data-testid="stRadio"] label {{
-        background-color: transparent !important;
-        border: none !important;
-    }}
-    
-    /* Cor do texto do item selecionado */
-    div[data-testid="stRadio"] label[data-baseweb="radio"] div:nth-child(2) p {{
-        color: {cores['primaria']} !important;
-        font-weight: bold !important;
-    }}
-
-    /* Cor do círculo de seleção (bolinha) */
-    div[data-testid="stRadio"] div[data-baseweb="radio"] div:first-child {{
-        border-color: {cores['primaria']} !important;
-    }}
-    
-    /* Cor do preenchimento da bolinha selecionada */
-    div[data-testid="stRadio"] input[type="radio"]:checked + div {{
-        background-color: {cores['primaria']} !important;
-    }}
-
-    /* Tabs (Abas) */
-    button[data-baseweb="tab"] {{ color: {cores['texto']} !important; }}
-    button[aria-selected="true"] {{ 
-        color: {cores['primaria']} !important;
-        border-bottom-color: {cores['primaria']} !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- CARREGAR DADOS ---
 try:
     df_historico = pd.read_csv("dados_glicemia.csv")
 except:
@@ -90,93 +58,79 @@ except:
 
 try:
     df_alimentos = pd.read_csv("alimentos.csv")
+    if df_alimentos.empty: raise Exception
 except:
-    df_alimentos = pd.DataFrame({"Alimento": ["Pão Francês", "Arroz"], "Carboidratos por Porção": [28, 25], "Unidade": ["un", "colher"]})
+    df_alimentos = pd.DataFrame({
+        "Alimento": ["Pão Francês", "Arroz Branco (colher)", "Feijão (concha)", "Maçã (un)"],
+        "Carbos": [28, 15, 14, 15]
+    })
 
-# --- BARRA LATERAL ---
+# --- INTERFACE ---
 with st.sidebar:
     st.title("📟 BioCare Kids")
-    # Menu lateral 
-    aba_config = st.radio("Navegar para:", ["🏠 Home", "📌 Pendentes", "📜 Histórico", "⚙️ Perfil & Temas", "🍎 Alimentos"])
-    st.divider()
+    aba = st.radio("Ir para:", ["🏠 Registro", "📊 Histórico & PDF", "🍎 Lista Alimentos"])
 
-# --- LÓGICA DE TELAS ---
-if aba_config == "🏠 Home":
-    st.title("📊 Painel de Controle")
-    tab1, tab2 = st.tabs(["📝 Registrar", "📜 Histórico"])
+if aba == "🏠 Registro":
+    st.header("📝 Novo Registro")
     
-    with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            g_pre = st.number_input("Glicemia Antes", value=110)
-            alimento = st.selectbox("Escolha o Alimento", df_alimentos["Alimento"].tolist())
-            info = df_alimentos[df_alimentos["Alimento"] == alimento].iloc[0]
-        with col2:
-            porcoes = st.number_input("Quantidade", min_value=0.1, value=1.0)
-            momento = st.selectbox("Momento", ["Café", "Almoço", "Jantar", "Lanche"])
-            carbo_total = info['Carboidratos por Porção'] * porcoes
+    col1, col2 = st.columns(2)
+    with col1:
+        g_pre = st.number_input("Glicemia Atual (mg/dL)", min_value=20, max_value=600, value=110)
         
-        if st.button("Calcular e Salvar Registro"):
-            dose = calcular_insulina(g_pre, 100, 50, carbo_total, 15)
-            novo_dado = {
-                "Data": datetime.now().strftime("%d/%m %H:%M"),
-                "Glicemia_Pre": g_pre, "Carbos": carbo_total, "Dose": dose, 
-                "Momento": momento, "Glicemia_Pos": 0
-            }
-            df_historico = pd.concat([df_historico, pd.DataFrame([novo_dado])], ignore_index=True)
-            df_historico.to_csv("dados_glicemia.csv", index=False)
-            st.success(f"Dose sugerida: {dose} U. Salvo!")
+        # --- ALERTA DE HIPOGLICEMIA ---
+        if g_pre < 70:
+            st.error("⚠️ ALERTA: HIPOGLICEMIA! Ofereça 15g de carboidrato simples imediatamente.")
+        elif g_pre > 250:
+            st.warning("⚠️ Atenção: Glicemia Elevada.")
 
-    with tab2:
-        st.dataframe(df_historico, use_container_width=True)
-        if not df_historico.empty:
-            st.download_button("📥 Baixar PDF", data=gerar_pdf(df_historico), file_name="glicemia.pdf")
+    with col2:
+        alimento_sel = st.selectbox("Alimento consumido", df_alimentos["Alimento"].tolist())
+        carbo_unitario = df_alimentos[df_alimentos["Alimento"] == alimento_sel]["Carbos"].values[0]
+        quantidade = st.number_input("Quantidade (porções/un)", min_value=0.1, value=1.0, step=0.5)
+        
+        # --- CÁLCULO AUTOMÁTICO ---
+        carbo_total = round(carbo_unitario * quantidade, 1)
+        st.info(f"Carboidratos Totais: **{carbo_total}g**")
 
-elif aba_config == "📌 Pendentes":
-    st.header("📌 Glicemia 2h Após")
-    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
-    if not pendentes.empty:
-        for idx, row in pendentes.iterrows():
-            with st.expander(f"{row['Momento']} - {row['Data']}"):
-                v_pos = st.number_input("Valor após 2h", key=f"p_{idx}")
-                if st.button("Confirmar", key=f"b_{idx}"):
-                    df_historico.at[idx, "Glicemia_Pos"] = v_pos
-                    df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.rerun()
+    momento = st.selectbox("Refeição", ["Café da Manhã", "Almoço", "Lanche", "Jantar", "Ceia"])
+
+    if st.button("Calcular Insulina e Salvar"):
+        # Usando valores padrão: Meta 100, Sensibilidade 50, Relação Carbo 15
+        dose = calcular_insulina(g_pre, 100, 50, carbo_total, 15)
+        
+        novo = {
+            "Data": datetime.now().strftime("%d/%m %H:%M"),
+            "Glicemia_Pre": g_pre, "Carbos": carbo_total, "Dose": dose, 
+            "Momento": momento, "Glicemia_Pos": 0
+        }
+        df_historico = pd.concat([df_historico, pd.DataFrame([novo])], ignore_index=True)
+        df_historico.to_csv("dados_glicemia.csv", index=False)
+        st.success(f"Dose Recomendada: {dose} Unidades. Registro salvo com sucesso!")
+
+elif aba == "📊 Histórico & PDF":
+    st.header("📜 Histórico de Registros")
+    
+    # Filtro rápido
+    if not df_historico.empty:
+        st.dataframe(df_historico.sort_index(ascending=False), use_container_width=True)
+        
+        st.divider()
+        st.subheader("📥 Exportação Médica")
+        st.write("Gere o relatório completo para enviar ao endocrinologista.")
+        btn_pdf = st.download_button(
+            label="Gerar Relatório em PDF",
+            data=gerar_pdf(df_historico),
+            file_name=f"relatorio_glicemia_{datetime.now().strftime('%m_%Y')}.pdf",
+            mime="application/pdf"
+        )
     else:
-        st.info("Nada pendente.")
+        st.info("Ainda não há registros salvos.")
 
-elif aba_config == "⚙️ Perfil & Temas":
-    st.header("⚙️ Configurações de Aparência")
-    st.subheader("🎨 Escolha um Tema")
+elif aba == "🍎 Lista Alimentos":
+    st.header("🍎 Minha Tabela de Carboidratos")
+    st.write("Adicione ou edite os alimentos que ela mais consome.")
     
-    escolha = st.selectbox(
-        "Selecione uma paleta de cores para o app:", 
-        list(TEMAS.keys()), 
-        index=list(TEMAS.keys()).index(st.session_state.tema_selecionado)
-    )
-    
-    if escolha != st.session_state.tema_selecionado:
-        st.session_state.tema_selecionado = escolha
-        st.rerun()
-
-    st.divider()
-    st.subheader("👤 Dados da Criança")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.text_input("Nome", "Minha Filha")
-    with c2:
-        st.number_input("Idade", value=5)
-
-elif aba_config == "🍎 Alimentos":
-    st.header("🍎 Gestão de Alimentos")
-    st.dataframe(df_alimentos, use_container_width=True)
-    with st.expander("➕ Adicionar Novo"):
-        n = st.text_input("Nome")
-        c = st.number_input("Carbo (g)", min_value=0)
-        u = st.text_input("Unidade")
-        if st.button("Salvar"):
-            novo = {"Alimento": n, "Carboidratos por Porção": c, "Unidade": u}
-            df_alimentos = pd.concat([df_alimentos, pd.DataFrame([novo])], ignore_index=True)
-            df_alimentos.to_csv("alimentos.csv", index=False)
-            st.rerun()
+    edit_df = st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+    if st.button("Salvar Alterações na Tabela"):
+        edit_df.to_csv("alimentos.csv", index=False)
+        st.success("Tabela de alimentos atualizada!")
