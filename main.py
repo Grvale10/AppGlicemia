@@ -18,14 +18,11 @@ def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
     return round(correcao + dose_carbo, 1)
 
 def gerar_pdf_detalhado(df_selecionado, df_pacs):
-    # Baseado na estrutura 8.0 (Paisagem)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
-    
     if df_selecionado.empty: return b""
     
     pacientes_no_hist = df_selecionado["Paciente"].unique()
-    
     for p_nome in pacientes_no_hist:
         pdf.add_page()
         pdf.set_font("Arial", "B", 20); pdf.set_text_color(99, 102, 241)
@@ -56,7 +53,6 @@ def gerar_pdf_detalhado(df_selecionado, df_pacs):
         
         pdf.set_font("Arial", "", 10); pdf.set_text_color(0, 0, 0)
         dados_p = df_selecionado[df_selecionado["Paciente"] == p_nome]
-        
         zebra = False
         for _, row in dados_p.iterrows():
             pdf.set_fill_color(245, 245, 245) if zebra else pdf.set_fill_color(255, 255, 255)
@@ -147,14 +143,15 @@ if aba == "🏠 Início":
 elif aba == "📊 Histórico":
     st.header("📊 Histórico e Exportação")
     if not df_historico.empty:
-        st.write("Selecione abaixo quais medições você deseja incluir no PDF:")
+        # TÍTULO LIMPO
+        st.write("Marque na coluna **Download?** os itens que deseja no PDF:")
         
-        # --- SISTEMA DE SELEÇÃO POR CHECKBOX ---
+        # Cria cópia com coluna de seleção
         df_com_selecao = df_historico.copy()
-        # Adiciona coluna de checkbox (valor inicial False)
         df_com_selecao.insert(0, "Selecionar", False)
         
-        # Usando o data_editor para permitir a marcação das caixas
+        # DATA_EDITOR COM TRATAMENTO DE RETORNO (EVITA O 'NONE')
+        # Ao atribuir o editor a uma variável, ele para de imprimir o status de edição na tela
         df_editado = st.data_editor(
             df_com_selecao,
             column_config={
@@ -166,31 +163,29 @@ elif aba == "📊 Histórico":
             },
             disabled=[col for col in df_com_selecao.columns if col != "Selecionar"],
             hide_index=True,
-            use_container_width=True
+            use_container_width=True,
+            key="editor_historico" # Chave única evita o log de saída 'None'
         )
         
-        # Filtra apenas o que o usuário marcou
         itens_selecionados = df_editado[df_editado["Selecionar"] == True]
         
-        st.divider()
         if not itens_selecionados.empty:
-            st.success(f"✅ {len(itens_selecionados)} item(ns) selecionado(s) para o PDF.")
+            st.divider()
+            st.success(f"✅ {len(itens_selecionados)} item(ns) prontos para exportação.")
             try:
-                # Remove a coluna "Selecionar" antes de mandar para a função do PDF
                 df_para_pdf = itens_selecionados.drop(columns=["Selecionar"])
                 pdf_bytes = gerar_pdf_detalhado(df_para_pdf, df_pacientes)
                 st.download_button(
-                    label="📥 Baixar PDF com Itens Selecionados",
+                    label="📥 Gerar e Baixar PDF",
                     data=pdf_bytes,
-                    file_name=f"Relatorio_Selecionado_{datetime.now().strftime('%d_%m')}.pdf",
+                    file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf",
                     mime="application/pdf"
                 )
-            except Exception as e: st.error(f"Erro ao preparar PDF: {e}")
+            except Exception as e: st.error(f"Erro: {e}")
         else:
-            st.info("💡 Marque a caixa 'Download?' na tabela acima para habilitar o botão de baixar PDF.")
-    else:
-        st.info("Nenhum dado registrado no histórico.")
+            st.info("💡 Selecione ao menos uma linha acima para habilitar o download.")
 
+# (Abas Pacientes, Alimentos, Pendentes, Perfil mantidas conforme Base 8.1)
 elif aba == "👥 Pacientes":
     st.header("👥 Pacientes")
     t1, t2 = st.tabs(["➕ Novo", "✏️ Gerenciar"])
