@@ -10,7 +10,7 @@ if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
 
-# --- 2. FUNÇÕES TÉCNICAS (PDF TURBINADO) ---
+# --- 2. FUNÇÕES TÉCNICAS (PDF E CÁLCULOS) ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
@@ -19,23 +19,18 @@ def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
 def gerar_pdf_detalhado(df_hist, df_pacs):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # Se houver mais de um paciente, vamos agrupar para o médico não se confundir
-    pacientes_no_hist = df_hist["Paciente"].unique()
+    pacientes_no_hist = df_hist["Paciente"].unique() if "Paciente" in df_hist.columns else ["Geral"]
 
     for p_nome in pacientes_no_hist:
         pdf.add_page()
-        
-        # --- CABEÇALHO DO RELATÓRIO ---
         pdf.set_font("Arial", "B", 18)
-        pdf.set_text_color(99, 102, 241) # Cor do seu app
+        pdf.set_text_color(99, 102, 241)
         pdf.cell(190, 10, "Relatorio de Controle Glicemico", ln=True, align='C')
         pdf.set_font("Arial", "", 10)
         pdf.set_text_color(0, 0, 0)
         pdf.cell(190, 8, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align='C')
         pdf.ln(5)
 
-        # --- DADOS DO PACIENTE ---
         p_info = df_pacs[df_pacs["Nome"] == p_nome]
         if not p_info.empty:
             p_info = p_info.iloc[0]
@@ -43,23 +38,15 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
             pdf.set_font("Arial", "B", 12)
             pdf.cell(190, 10, f" Dados do Paciente: {p_nome}", ln=True, fill=True)
             pdf.set_font("Arial", "", 10)
-            
-            col_w = 95
-            pdf.cell(col_w, 8, f"CPF: {p_info.get('CPF', '-')}")
-            pdf.cell(col_w, 8, f"Tipo Sanguineo: {p_info.get('Sangue', '-')}", ln=True)
-            
-            tipo_p = p_info.get('Tipo_Plano', 'N/A')
-            detalhe_p = p_info.get('Plano', '-')
-            pdf.cell(col_w, 8, f"Plano: {tipo_p}")
-            pdf.cell(col_w, 8, f"Detalhes/ID: {detalhe_p}", ln=True)
+            pdf.cell(95, 8, f"CPF: {p_info.get('CPF', '-')}")
+            pdf.cell(95, 8, f"Tipo Sanguineo: {p_info.get('Sangue', '-')}", ln=True)
+            pdf.cell(95, 8, f"Plano: {p_info.get('Tipo_Plano', 'N/A')}")
+            pdf.cell(95, 8, f"Detalhes: {p_info.get('Plano', '-')}", ln=True)
             pdf.ln(5)
 
-        # --- TABELA DE HISTÓRICO ---
         pdf.set_font("Arial", "B", 10)
         pdf.set_fill_color(99, 102, 241)
         pdf.set_text_color(255, 255, 255)
-        
-        # Cabeçalhos da Tabela
         pdf.cell(30, 10, " Data/Hora", border=1, fill=True)
         pdf.cell(35, 10, " Momento", border=1, fill=True)
         pdf.cell(25, 10, " Glic. Pre", border=1, fill=True)
@@ -69,7 +56,6 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
 
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", "", 9)
-        
         dados_p = df_hist[df_hist["Paciente"] == p_nome]
         for _, row in dados_p.iterrows():
             pdf.cell(30, 8, str(row['Data']), border=1)
@@ -77,9 +63,9 @@ def gerar_pdf_detalhado(df_hist, df_pacs):
             pdf.cell(25, 8, f"{row['Glicemia_Pre']} mg/dL", border=1)
             pdf.cell(25, 8, f"{row['Carbos']}g", border=1)
             pdf.cell(25, 8, f"{row['Dose']} U", border=1)
-            g_pos = row['Glicemia_Pos'] if row['Glicemia_Pos'] != 0 else "-"
-            pdf.cell(25, 8, f"{g_pos}", border=1, ln=True)
-            
+            # Proteção para exibir a glicemia pós ou traço
+            g_val = row.get('Glicemia_Pos', 0)
+            pdf.cell(25, 8, f"{g_val if g_val != 0 else '-'}", border=1, ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. DESIGN CSS ---
@@ -106,7 +92,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. BANCO DE DADOS ---
+# --- 4. BANCO DE DADOS (VACINA CONTRA O KEYERROR) ---
 def iniciar_banco():
     if os.path.exists("alimentos.csv"):
         df_a = pd.read_csv("alimentos.csv")
@@ -119,7 +105,15 @@ def iniciar_banco():
     else:
         df_p = pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue", "Tipo_Plano"])
 
-    df_h = pd.read_csv("dados_glicemia.csv") if os.path.exists("dados_glicemia.csv") else pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
+    if os.path.exists("dados_glicemia.csv"):
+        df_h = pd.read_csv("dados_glicemia.csv")
+        df_h.columns = df_h.columns.str.strip()
+        # VACINA: Se a coluna Glicemia_Pos não existir no arquivo antigo, cria ela agora
+        if "Glicemia_Pos" not in df_h.columns:
+            df_h["Glicemia_Pos"] = 0
+    else:
+        df_h = pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
+    
     return df_a, df_h, df_p
 
 df_alimentos, df_historico, df_pacientes = iniciar_banco()
@@ -129,7 +123,7 @@ with st.sidebar:
     st.markdown("<h1 style='text-align: center; font-size: 22px; color: #1F2937; margin-bottom: 25px;'>Glicemia Para Todos</h1>", unsafe_allow_html=True)
     aba = st.radio("", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
-# --- 6. TELAS (CIRÚRGICO NA ABA HISTÓRICO) ---
+# --- 6. TELAS ---
 
 if aba == "🏠 Início":
     st.header("📝 Nova Refeição")
@@ -143,7 +137,10 @@ if aba == "🏠 Início":
                 g_pre = st.number_input("Glicemia Atual", min_value=20, value=110)
             with col2:
                 alimento_sel = st.selectbox("O que vai comer?", df_alimentos["Alimento"].tolist())
-                val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0] if alimento_sel in df_alimentos["Alimento"].values else 0.0
+                try:
+                    val_c = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel, "Carbos"].values[0]
+                except:
+                    val_c = 0.0
                 qtd = st.number_input("Porção", min_value=0.1, value=1.0)
             
             total_c = round(float(val_c) * qtd, 1)
@@ -156,28 +153,30 @@ if aba == "🏠 Início":
                 st.success(f"Dose sugerida: {dose} U")
 
 elif aba == "📊 Histórico":
-    st.header("📜 Histórico de Registros")
-    
+    st.header("📜 Histórico")
     if not df_historico.empty:
-        # Filtro rápido na tela
         pac_filtro = st.multiselect("Filtrar por Paciente", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
         df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
-        
         st.dataframe(df_filtrado, use_container_width=True)
-        
-        st.markdown("### 📄 Exportar para o Médico")
-        st.write("O PDF conterá os dados cadastrais, plano de saúde e histórico completo.")
-        
-        # O botão de download do Streamlit funciona perfeitamente no iPhone para compartilhar via WhatsApp
         pdf_data = gerar_pdf_detalhado(df_filtrado, df_pacientes)
-        st.download_button(
-            label="📥 Baixar Relatório Médico (PDF)",
-            data=pdf_data,
-            file_name=f"Relatorio_Glicemia_{datetime.now().strftime('%d_%m_%Y')}.pdf",
-            mime="application/pdf"
-        )
+        st.download_button("📥 Baixar Relatório Médico (PDF)", data=pdf_data, file_name=f"Relatorio_{datetime.now().strftime('%d_%m')}.pdf", mime="application/pdf")
     else:
-        st.info("Ainda não há registros no histórico.")
+        st.info("Sem registros.")
+
+elif aba == "📌 Pendentes":
+    st.header("📌 Glicemia Pós-Refeição")
+    # Agora a coluna Glicemia_Pos é garantida pela função iniciar_banco
+    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if not pendentes.empty:
+        for idx, row in pendentes.iterrows():
+            with st.expander(f"{row['Paciente']} - {row['Data']}"):
+                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}")
+                if st.button("Confirmar", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v_pos
+                    df_historico.to_csv("dados_glicemia.csv", index=False)
+                    st.rerun()
+    else:
+        st.info("Nada pendente.")
 
 elif aba == "👥 Pacientes":
     st.header("👥 Gestão de Pacientes")
@@ -213,17 +212,6 @@ elif aba == "🍎 Alimentos":
                 ni = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a}])
                 df_alimentos = pd.concat([df_alimentos, ni], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False); st.rerun()
     st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
-
-elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós-Refeição")
-    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
-    if not pendentes.empty:
-        for idx, row in pendentes.iterrows():
-            with st.expander(f"{row['Paciente']} - {row['Data']}"):
-                v_pos = st.number_input("Valor 2h após", key=f"p_{idx}")
-                if st.button("Confirmar", key=f"b_{idx}"):
-                    df_historico.at[idx, "Glicemia_Pos"] = v_pos; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
-    else: st.info("Nada pendente.")
 
 elif aba == "👤 Perfil":
     st.header("👤 Configurações")
