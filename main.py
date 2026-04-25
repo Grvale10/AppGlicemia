@@ -89,7 +89,8 @@ df_alimentos, df_historico, df_pacientes = iniciar_banco()
 # --- 5. MENU LATERAL ---
 with st.sidebar:
     st.markdown("<h1 style='text-align: center; font-size: 22px;'>Glicemia Para Todos</h1>", unsafe_allow_html=True)
-    aba = st.radio("", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
+    # Alteração aqui: de "📌 Pendentes" para "💉 Glicemia Pós"
+    aba = st.radio("", ["🏠 Início", "👥 Pacientes", "💉 Glicemia Pós", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- 6. TELAS ---
 
@@ -144,8 +145,6 @@ elif aba == "📊 Histórico":
         df_com_selecao = df_historico.copy()
         df_com_selecao.insert(0, "Selecionar", False)
         
-        # CORREÇÃO DO NONE: Atribuímos o editor à variável 'df_editado' 
-        # e usamos uma 'key' para silenciar o log automático.
         df_editado = st.data_editor(
             df_com_selecao,
             column_config={
@@ -154,7 +153,7 @@ elif aba == "📊 Histórico":
             disabled=[col for col in df_com_selecao.columns if col != "Selecionar"],
             hide_index=True,
             use_container_width=True,
-            key="tabela_hist_81" # Chave silenciadora
+            key="historico_v81_final"
         )
         
         itens_sel = df_editado[df_editado["Selecionar"] == True]
@@ -162,6 +161,19 @@ elif aba == "📊 Histórico":
             st.divider()
             pdf_bytes = gerar_pdf_detalhado(itens_sel.drop(columns=["Selecionar"]), df_pacientes)
             st.download_button("📥 Gerar e Baixar PDF", pdf_bytes, "Relatorio.pdf", "application/pdf")
+
+elif aba == "💉 Glicemia Pós":
+    # Alteração aqui: Título da página
+    st.header("💉 Glicemia Pós")
+    pend = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if pend.empty:
+        st.info("Não há medições aguardando valor pós-refeição.")
+    else:
+        for idx, r in pend.iterrows():
+            with st.expander(f"{r['Paciente']} ({r['Data']})"):
+                v = st.number_input("Valor Pós", key=f"v_{idx}")
+                if st.button("Salvar", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
 
 elif aba == "👥 Pacientes":
     st.header("👥 Pacientes")
@@ -182,15 +194,6 @@ elif aba == "🍎 Alimentos":
             new_a = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Unidade": u_a}])
             df_alimentos = pd.concat([df_alimentos, new_a], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False); st.rerun()
     st.dataframe(df_alimentos, use_container_width=True)
-
-elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós")
-    pend = df_historico[df_historico["Glicemia_Pos"] == 0]
-    for idx, r in pend.iterrows():
-        with st.expander(f"{r['Paciente']} ({r['Data']})"):
-            v = st.number_input("Valor Pós", key=f"v_{idx}")
-            if st.button("Salvar", key=f"b_{idx}"):
-                df_historico.at[idx, "Glicemia_Pos"] = v; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
 
 elif aba == "👤 Perfil":
     st.header("👤 Ajustes")
