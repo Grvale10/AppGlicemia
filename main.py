@@ -9,9 +9,40 @@ if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
 if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 if "sacola_refeicao" not in st.session_state: st.session_state.sacola_refeicao = []
 
-st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
+st.set_page_config(page_title="Glicemia Para Todos", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. FUNÇÕES TÉCNICAS ---
+# --- 2. DESIGN CSS (CORREÇÃO NONE, TOOLTIPS E 3 BARRAS) ---
+st.markdown(f"""
+    <style>
+    .stApp {{ background-color: {st.session_state.cor_fundo}; }}
+    
+    /* OCULTAR "NONE" E STATUS DE EXECUÇÃO */
+    [data-testid="stStatusWidget"], div.element-container:has(p:contains("None")) {{
+        display: none !important;
+    }}
+
+    /* SUBSTITUIR SETA DO SIDEBAR PELAS 3 BARRAS (MENU HAMBÚRGUER) */
+    button[kind="headerNoPadding"] svg {{ display: none !important; }}
+    button[kind="headerNoPadding"]::after {{
+        content: "☰"; color: {st.session_state.cor_botao};
+        font-size: 24px; font-weight: bold;
+    }}
+
+    /* ESTILIZAÇÃO DOS BOTÕES E CARDS */
+    .stButton>button {{
+        width: 100%; border-radius: 14px; height: 3.5em;
+        background-color: {st.session_state.cor_botao} !important;
+        color: white !important; font-weight: bold; border: none;
+    }}
+    .card-refeicao {{
+        background-color: white; padding: 15px; border-radius: 15px;
+        border-left: 5px solid {st.session_state.cor_botao}; margin-bottom: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 3. FUNÇÕES TÉCNICAS (PDF E CÁLCULO) ---
 def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
     correcao = max(0, (glicemia - meta) / sensibilidade)
     dose_carbo = carboidratos / relacao_c
@@ -20,73 +51,61 @@ def calcular_insulina(glicemia, meta, sensibilidade, carboidratos, relacao_c):
 def gerar_pdf_detalhado(df_hist, df_pacs):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
-    if df_hist.empty: return b""
-    pacientes_no_hist = df_hist["Paciente"].unique()
-    for p_nome in pacientes_no_hist:
+    for p_nome in df_hist["Paciente"].unique():
         pdf.add_page()
-        pdf.set_font("Arial", "B", 20)
-        pdf.set_text_color(99, 102, 241)
-        pdf.cell(0, 15, f"Relatório de Controle Glicêmico - {p_nome}", ln=True, align='C')
-        pdf.set_font("Arial", "I", 9)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 5, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align='R')
+        pdf.set_font("Arial", "B", 18); pdf.set_text_color(99, 102, 241)
+        pdf.cell(0, 15, f"Relatório: {p_nome}", ln=True, align='C')
         pdf.ln(5)
-        p_info = df_pacs[df_pacs["Nome"] == p_nome]
-        if not p_info.empty:
-            p_info = p_info.iloc[0]
-            pdf.set_fill_color(245, 247, 255); pdf.set_font("Arial", "B", 11); pdf.set_text_color(50, 50, 50)
-            pdf.cell(0, 10, "  Informações do Paciente", ln=True, fill=True)
-            pdf.set_font("Arial", "", 10)
-            pdf.cell(70, 8, f" CPF: {p_info.get('CPF', '-')}")
-            pdf.cell(70, 8, f" Tipo Sanguíneo: {p_info.get('Sangue', '-')}")
-            pdf.cell(0, 8, f" Parentesco: {p_info.get('Parentesco', '-')}", ln=True)
-            pdf.cell(70, 8, f" Plano: {p_info.get('Tipo_Plano', 'N/A')}")
-            pdf.cell(0, 8, f" Detalhes: {p_info.get('Plano', '-')}", ln=True)
-            pdf.ln(10)
-        w = {"data": 35, "refeicao": 55, "pre": 40, "carbo": 35, "dose": 30, "pos": 40}
-        pdf.set_font("Arial", "B", 10); pdf.set_fill_color(99, 102, 241); pdf.set_text_color(255, 255, 255)
-        pdf.cell(w["data"], 10, " Data/Hora", border=1, fill=True, align='C')
-        pdf.cell(w["refeicao"], 10, " Tipo de Refeição", border=1, fill=True, align='C')
-        pdf.cell(w["pre"], 10, " Glicemia Pré", border=1, fill=True, align='C')
-        pdf.cell(w["carbo"], 10, " Carboidratos", border=1, fill=True, align='C')
-        pdf.cell(w["dose"], 10, " Dose (U)", border=1, fill=True, align='C')
-        pdf.cell(w["pos"], 10, " Glicemia Pós", border=1, fill=True, align='C', ln=True)
+        # Cabeçalho
+        pdf.set_fill_color(99, 102, 241); pdf.set_text_color(255, 255, 255); pdf.set_font("Arial", "B", 10)
+        pdf.cell(40, 10, " Data/Hora", 1, 0, 'L', True)
+        pdf.cell(60, 10, " Refeição", 1, 0, 'L', True)
+        pdf.cell(40, 10, " Glicemia Pré", 1, 0, 'C', True)
+        pdf.cell(40, 10, " Carboidratos", 1, 0, 'C', True)
+        pdf.cell(30, 10, " Dose", 1, 0, 'C', True)
+        pdf.cell(40, 10, " Glicemia Pós", 1, 1, 'C', True)
+        # Dados
         pdf.set_font("Arial", "", 10); pdf.set_text_color(0, 0, 0)
-        dados_p = df_hist[df_hist["Paciente"] == p_nome].sort_index(ascending=False)
-        zebra = False
-        for _, row in dados_p.iterrows():
-            pdf.set_fill_color(245, 245, 245) if zebra else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(w["data"], 9, f" {row['Data']}", border=1, fill=True)
-            pdf.cell(w["refeicao"], 9, f" {row.get('Momento', 'Outro')}", border=1, fill=True)
-            pdf.cell(w["pre"], 9, f"{row['Glicemia_Pre']} mg/dL", border=1, fill=True, align='C')
-            pdf.cell(w["carbo"], 9, f"{row['Carbos']}g", border=1, fill=True, align='C')
-            pdf.cell(w["dose"], 9, f"{row['Dose']} U", border=1, fill=True, align='C')
-            g_val = row.get('Glicemia_Pos', 0)
-            pdf.cell(w["pos"], 9, f"{g_val} mg/dL" if g_val != 0 else "Pendente", border=1, fill=True, align='C', ln=True)
-            zebra = not zebra
-    try: return bytes(pdf.output())
-    except: return pdf.output(dest='S').encode('latin-1')
+        for _, row in df_hist[df_hist["Paciente"] == p_nome].iterrows():
+            pdf.cell(40, 9, f" {row['Data']}", 1)
+            pdf.cell(60, 9, f" {row['Momento']}", 1)
+            pdf.cell(40, 9, f" {row['Glicemia_Pre']} mg/dL", 1, 0, 'C')
+            pdf.cell(40, 9, f" {row['Carbos']}g", 1, 0, 'C')
+            pdf.cell(30, 9, f" {row['Dose']} U", 1, 0, 'C')
+            pdf.cell(40, 9, f" {row.get('Glicemia_Pos', 0)} mg/dL", 1, 1, 'C')
+    return bytes(pdf.output())
 
-# --- 3. DESIGN CSS ---
-st.markdown(f"""
-    <style>
-    .stApp {{ background-color: {st.session_state.cor_fundo}; }}
-    [data-testid="stSidebar"] [data-testid="stRadio"] > label {{ display: none !important; }}
-    div[data-testid="stRadio"] div[role="radiogroup"] label {{
-        background-color: #ffffff !important; border-radius: 12px !important;
-        padding: 12px 15px !important; margin-bottom: 10px !important;
-        width: 100% !important; border: 1px solid #E5E7EB !important;
-    }}
-    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {{ background-color: {st.session_state.cor_botao} !important; }}
-    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p {{ color: white !important; font-weight: bold !important; }}
-    .stButton>button {{ width: 100%; border-radius: 14px; height: 3.5em; background-color: {st.session_state.cor_botao} !important; color: white !important; font-weight: bold; border: none; }}
-    .card-refeicao {{ background-color: white; padding: 15px; border-radius: 15px; border: 1px solid #E5E7EB; margin-bottom: 5px; }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 4. BANCO DE DADOS ---
+# --- 4. BANCO DE DADOS COM LISTA SBD COMPLETA ---
 def iniciar_banco():
-    df_a = pd.read_csv("alimentos.csv") if os.path.exists("alimentos.csv") else pd.DataFrame(columns=["Alimento", "Carbos", "Proteina", "Gordura", "Gramas", "Unidade"])
+    sbd_completa = [
+        {"Alimento": "Arroz Branco", "Carbos": 28, "Unidade": "Escumadeira (100g)"},
+        {"Alimento": "Arroz Integral", "Carbos": 25, "Unidade": "Escumadeira (100g)"},
+        {"Alimento": "Feijão (Carioca/Preto)", "Carbos": 14, "Unidade": "Concha (100g)"},
+        {"Alimento": "Pão Francês", "Carbos": 25, "Unidade": "1 unidade (50g)"},
+        {"Alimento": "Pão de Forma Integral", "Carbos": 22, "Unidade": "2 fatias (50g)"},
+        {"Alimento": "Macarrão Cozido", "Carbos": 30, "Unidade": "Pegador (100g)"},
+        {"Alimento": "Batata Inglesa Cozida", "Carbos": 12, "Unidade": "Unidade pequena (100g)"},
+        {"Alimento": "Batata Doce Cozida", "Carbos": 18, "Unidade": "Fatia média (100g)"},
+        {"Alimento": "Cuscuz", "Carbos": 25, "Unidade": "Fatia média (100g)"},
+        {"Alimento": "Tapioca (Goma)", "Carbos": 54, "Unidade": "3 colheres de sopa (100g)"},
+        {"Alimento": "Banana Prata", "Carbos": 22, "Unidade": "1 unidade"},
+        {"Alimento": "Maçã média", "Carbos": 15, "Unidade": "1 unidade"},
+        {"Alimento": "Mamão Papaia", "Carbos": 11, "Unidade": "1/2 unidade"},
+        {"Alimento": "Suco de Laranja Natural", "Carbos": 21, "Unidade": "Copo (200ml)"},
+        {"Alimento": "Leite Integral/Desnatado", "Carbos": 10, "Unidade": "Copo (200ml)"},
+        {"Alimento": "Iogurte Natural", "Carbos": 9, "Unidade": "Pote (170g)"},
+        {"Alimento": "Bolacha Salgada", "Carbos": 14, "Unidade": "3 unidades"},
+        {"Alimento": "Ovo Cozido/Frito", "Carbos": 1, "Unidade": "Unidade"},
+        {"Alimento": "Frango Grelhado", "Carbos": 0, "Unidade": "Filé médio"},
+        {"Alimento": "Carne Vermelha", "Carbos": 0, "Unidade": "Bife médio"}
+    ] # (Nota: A lista continua crescendo conforme o uso)
+
+    if not os.path.exists("alimentos.csv"):
+        df_a = pd.DataFrame(sbd_completa)
+        df_a.to_csv("alimentos.csv", index=False)
+    else:
+        df_a = pd.read_csv("alimentos.csv")
+        
     df_p = pd.read_csv("pacientes.csv") if os.path.exists("pacientes.csv") else pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "SUS", "Plano", "Sangue", "Tipo_Plano"])
     df_h = pd.read_csv("dados_glicemia.csv") if os.path.exists("dados_glicemia.csv") else pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carbos", "Dose", "Momento", "Glicemia_Pos"])
     return df_a, df_h, df_p
@@ -95,102 +114,100 @@ df_alimentos, df_historico, df_pacientes = iniciar_banco()
 
 # --- 5. MENU LATERAL ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; font-size: 22px; color: #1F2937; margin-bottom: 25px;'>Glicemia Para Todos</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center; color: {st.session_state.cor_botao};'>Glicemia App</h2>", unsafe_allow_html=True)
     aba = st.radio("", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos", "👤 Perfil"], label_visibility="collapsed")
 
 # --- 6. TELAS ---
+
 if aba == "🏠 Início":
     st.header("🍽️ Registrar Refeição")
-    if df_pacientes.empty: st.warning("⚠️ Cadastre um paciente primeiro.")
+    if df_pacientes.empty:
+        st.warning("Cadastre um paciente primeiro.")
     else:
         with st.container():
-            col_f1, col_f2, col_f3 = st.columns(3)
-            with col_f1: pac_sel = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
-            with col_f2: refeicao_tipo = st.selectbox("Momento", ["Café da Manhã", "Almoço", "Jantar", "Lanche", "Ceia", "Pré-Treino", "Outro"])
-            with col_f3: g_pre = st.number_input("Glicemia Pré (mg/dL)", min_value=20, value=110)
+            c1, c2, c3 = st.columns(3)
+            with c1: pac = st.selectbox("Paciente", df_pacientes["Nome"].tolist(), help="Escolha o paciente.")
+            with c2: mom = st.selectbox("Momento", ["Café da Manhã", "Almoço", "Jantar", "Lanche", "Ceia"], help="Selecione o tipo da refeição.")
+            with c3: gpre = st.number_input("Glicemia Pré (mg/dL)", value=110, help="Valor da glicemia antes de comer.")
+            
             st.divider()
             col_i1, col_i2 = st.columns([3, 1])
             with col_i1:
-                alimento_sel = st.selectbox("Buscar Alimento", df_alimentos["Alimento"].tolist())
-                try:
-                    linha_a = df_alimentos.loc[df_alimentos["Alimento"] == alimento_sel].iloc[0]
-                    val_c = linha_a["Carbos"]; uni_a = linha_a["Unidade"]
-                except: val_c = 0.0; uni_a = "un"
+                ali_sel = st.selectbox("Buscar Alimento (Tabela SBD)", df_alimentos["Alimento"].tolist(), help="Busque pelo nome do alimento.")
+                lin = df_alimentos.loc[df_alimentos["Alimento"] == ali_sel].iloc[0]
+                val_c = lin["Carbos"]; uni_a = lin["Unidade"]
             with col_i2: qtd = st.number_input(f"Qtd ({uni_a})", min_value=0.1, value=1.0)
+            
             if st.button("➕ Adicionar ao Prato"):
-                st.session_state.sacola_refeicao.append({"Alimento": alimento_sel, "Qtd": qtd, "Carbos": round(float(val_c) * qtd, 1), "Unidade": uni_a})
-                st.toast(f"✅ {alimento_sel} adicionado!"); st.rerun()
+                st.session_state.sacola_refeicao.append({"A": ali_sel, "Q": qtd, "C": round(float(val_c) * qtd, 1), "U": uni_a})
+                st.toast(f"{ali_sel} adicionado!"); st.rerun()
 
             if st.session_state.sacola_refeicao:
-                total_c_refeicao = sum(item['Carbos'] for item in st.session_state.sacola_refeicao)
-                for idx, item in enumerate(st.session_state.sacola_refeicao):
-                    c_it, c_dl = st.columns([6, 1])
-                    with c_it: st.markdown(f'<div class="card-refeicao"><b>{item["Alimento"]}</b> | {item["Qtd"]} {item["Unidade"]} ({item["Carbos"]}g)</div>', unsafe_allow_html=True)
-                    with c_dl: 
+                total_c = sum(i['C'] for i in st.session_state.sacola_refeicao)
+                for idx, i in enumerate(st.session_state.sacola_refeicao):
+                    cit, cde = st.columns([6, 1])
+                    with cit: st.markdown(f'<div class="card-refeicao"><b>{i["A"]}</b> | {i["Q"]} {i["U"]} ({i["C"]}g)</div>', unsafe_allow_html=True)
+                    with cde: 
                         if st.button("🗑️", key=f"del_{idx}"): st.session_state.sacola_refeicao.pop(idx); st.rerun()
-                st.metric("Total de Carboidratos", f"{round(total_c_refeicao, 1)}g")
+                
+                st.metric("Total de Carboidratos", f"{round(total_c, 1)}g")
                 if st.button("💉 Calcular e Salvar"):
-                    dose = calcular_insulina(g_pre, 100, 50, total_c_refeicao, 15)
-                    novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Paciente": pac_sel, "Glicemia_Pre": g_pre, "Carbos": round(total_c_refeicao, 1), "Dose": dose, "Momento": refeicao_tipo, "Glicemia_Pos": 0}])
+                    dose = calcular_insulina(gpre, 100, 50, total_c, 15)
+                    novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m %H:%M"), "Paciente": pac, "Glicemia_Pre": gpre, "Carbos": round(total_c, 1), "Dose": dose, "Momento": mom, "Glicemia_Pos": 0}])
                     df_historico = pd.concat([df_historico, novo], ignore_index=True); df_historico.to_csv("dados_glicemia.csv", index=False)
-                    st.session_state.sacola_refeicao = []; st.success(f"✅ Registro salvo! Dose: {dose} U"); st.balloons()
+                    st.session_state.sacola_refeicao = []; st.success(f"Salvo! Dose: {dose} U"); st.balloons()
 
 elif aba == "📊 Histórico":
-    st.header("📊 Histórico de Medições")
+    st.header("📊 Histórico e PDF")
     if not df_historico.empty:
-        pac_filtro = st.multiselect("Filtrar Paciente", df_historico["Paciente"].unique(), default=df_historico["Paciente"].unique())
-        df_filtrado = df_historico[df_historico["Paciente"].isin(pac_filtro)]
-        st.dataframe(df_filtrado, use_container_width=True)
-        if st.download_button(label="📥 Baixar Relatório PDF", data=gerar_pdf_detalhado(df_filtrado, df_pacientes), file_name="Glicemia.pdf", mime="application/pdf"):
-            st.toast("Documento preparado!")
+        df_vis = df_historico.copy()
+        df_vis.insert(0, "Exportar", False)
+        df_ed = st.data_editor(
+            df_vis,
+            column_config={"Exportar": st.column_config.CheckboxColumn("Selecionar", default=False)},
+            disabled=[c for c in df_vis.columns if c != "Exportar"],
+            hide_index=True, use_container_width=True
+        )
+        sel = df_ed[df_ed["Exportar"] == True]
+        if not sel.empty:
+            pdf_bytes = gerar_pdf_detalhado(sel.drop(columns=["Exportar"]), df_pacientes)
+            st.download_button("📥 Baixar Relatório Selecionado", pdf_bytes, "Glicemia.pdf", "application/pdf")
+
+elif aba == "🍎 Alimentos":
+    st.header("🍎 Cardápio SBD")
+    with st.form("f_ali", clear_on_submit=True):
+        c1, c2, c3 = st.columns(3)
+        with c1: n = st.text_input("Novo Alimento", help="Ex: Pão de Queijo")
+        with c2: c = st.number_input("Carbos (g)", help="Quantidade de carboidratos.")
+        with c3: u = st.text_input("Unidade", value="unidade", help="Ex: g, fatia, copo")
+        if st.form_submit_button("Salvar Alimento"):
+            new = pd.DataFrame([{"Alimento": n, "Carbos": c, "Unidade": u}])
+            df_alimentos = pd.concat([df_alimentos, new], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False)
+            st.success("Alimento adicionado!"); st.rerun()
+    st.dataframe(df_alimentos, use_container_width=True)
 
 elif aba == "👥 Pacientes":
     st.header("👥 Pacientes")
-    t1, t2 = st.tabs(["➕ Novo Paciente", "✏️ Gerenciar"])
-    with t1:
-        with st.form("add_p", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            with c1: n = st.text_input("Nome"); p = st.selectbox("Parentesco", ["Filho", "Filha", "Cônjuge", "Outro"])
-            with c2: cp = st.text_input("CPF"); s = st.selectbox("Sangue", ["Não Sei", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
-            tp = st.selectbox("Plano", ["Particular", "SUS", "Outro"]); d = st.text_input("Dados do Plano")
-            if st.form_submit_button("💾 Salvar Paciente"):
-                if n:
-                    np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s, "Plano": d, "Tipo_Plano": tp}])
-                    df_pacientes = pd.concat([df_pacientes, np], ignore_index=True); df_pacientes.to_csv("pacientes.csv", index=False)
-                    st.success(f"✅ Paciente {n} cadastrado com sucesso!")
-                    st.toast("Dados arquivados!")
-    with t2:
-        if not df_pacientes.empty:
-            sel = st.selectbox("Selecionar para remover", df_pacientes["Nome"].tolist())
-            if st.button("🗑️ Remover permanentemente"):
-                df_pacientes = df_pacientes[df_pacientes["Nome"] != sel]; df_pacientes.to_csv("pacientes.csv", index=False); st.rerun()
-
-elif aba == "🍎 Alimentos":
-    st.header("🍎 Cardápio")
-    with st.form("novo_a", clear_on_submit=True):
+    with st.form("add_p", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        with c1: n_a = st.text_input("Nome do Alimento"); u_a = st.text_input("Unidade (ex: colher)"); g_a = st.number_input("Peso (g)")
-        with c2: c_a = st.number_input("Carbos (g)"); p_a = st.number_input("Prot (g)"); f_a = st.number_input("Gord (g)")
-        if st.form_submit_button("💾 Salvar no Cardápio"):
-            if n_a:
-                ni = pd.DataFrame([{"Alimento": n_a, "Carbos": c_a, "Proteina": p_a, "Gordura": f_a, "Gramas": g_a, "Unidade": u_a}])
-                df_alimentos = pd.concat([df_alimentos, ni], ignore_index=True); df_alimentos.to_csv("alimentos.csv", index=False)
-                st.success(f"✅ {n_a} adicionado ao cardápio!")
-                st.toast("Item salvo!")
-    st.data_editor(df_alimentos, num_rows="dynamic", use_container_width=True)
+        with c1: n = st.text_input("Nome"); p = st.selectbox("Parentesco", ["Filha", "Filho", "Cônjuge", "Outro"])
+        with c2: cp = st.text_input("CPF"); s = st.selectbox("Sangue", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
+        if st.form_submit_button("Salvar Paciente"):
+            np = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": cp, "Sangue": s}])
+            df_pacientes = pd.concat([df_pacientes, np], ignore_index=True); df_pacientes.to_csv("pacientes.csv", index=False)
+            st.success("Paciente cadastrado!"); st.rerun()
+    st.table(df_pacientes)
 
 elif aba == "📌 Pendentes":
     st.header("📌 Glicemia Pós")
     pend = df_historico[df_historico["Glicemia_Pos"] == 0]
-    if pend.empty: st.info("Não há medições pós-refeição pendentes.")
     for idx, r in pend.iterrows():
-        with st.expander(f"📝 {r['Paciente']} - {r['Momento']} ({r['Data']})"):
-            v = st.number_input("Valor Glicêmico Pós", key=f"v_{idx}")
-            if st.button("✅ Confirmar Valor", key=f"b_{idx}"):
-                df_historico.at[idx, "Glicemia_Pos"] = v; df_historico.to_csv("dados_glicemia.csv", index=False)
-                st.toast("Valor atualizado!"); st.rerun()
+        with st.expander(f"{r['Paciente']} - {r['Momento']} ({r['Data']})"):
+            v = st.number_input("Valor Pós", key=f"v_{idx}")
+            if st.button("Confirmar", key=f"b_{idx}"):
+                df_historico.at[idx, "Glicemia_Pos"] = v; df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
 
 elif aba == "👤 Perfil":
-    st.header("👤 Ajustes")
-    st.session_state.cor_botao = st.color_picker("Cor Principal dos Botões", st.session_state.cor_botao)
-    if st.button("💾 Aplicar Preferências"): st.success("Cores atualizadas!"); st.rerun()
+    st.header("⚙️ Ajustes")
+    st.session_state.cor_botao = st.color_picker("Cor dos Botões", st.session_state.cor_botao)
+    if st.button("Aplicar"): st.rerun()
