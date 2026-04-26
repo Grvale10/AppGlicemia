@@ -5,80 +5,47 @@ from datetime import datetime
 import os
 
 # --- 1. CONFIGURAÇÕES ---
-if "cor_fundo" not in st.session_state: st.session_state.cor_fundo = "#F8F9FA"
-if "cor_botao" not in st.session_state: st.session_state.cor_botao = "#6366F1"
 if "sacola_refeicao" not in st.session_state: st.session_state.sacola_refeicao = []
 
 st.set_page_config(page_title="Glicemia Para Todos", layout="wide")
 
-# --- 2. BANCO DE DADOS (COM PADRONIZAÇÃO) ---
-def iniciar_banco_dados():
-    # Se o arquivo de glicemia existir, vamos garantir que as colunas tenham os nomes certos
-    c_hist = ["Data", "Paciente", "Glicemia_Pré", "Carboidratos", "Proteínas", "Gorduras", "Dose", "Momento", "Glicemia_Pós"]
-    
-    if os.path.exists("dados_glicemia.csv"):
-        df_h = pd.read_csv("dados_glicemia.csv")
-        # Se as colunas estiverem com nomes antigos, renomeamos agora para evitar o KeyError
-        mapa_nomes = {
-            "Glicemia Pré": "Glicemia_Pré",
-            "Glicemia Pós": "Glicemia_Pós",
-            "Glicemia_Pre": "Glicemia_Pré",
-            "Glicemia_Pos": "Glicemia_Pós"
-        }
-        df_h = df_h.rename(columns=mapa_nomes)
+# --- 2. BANCO DE DADOS (CARREGAMENTO SEGURO) ---
+def carregar_dados():
+    # Alimentos
+    if os.path.exists("alimentos.csv"):
+        df_a = pd.read_csv("alimentos.csv")
     else:
-        df_h = pd.DataFrame(columns=c_hist)
+        # Se não existir, cria a base técnica inicial
+        dados_sbd = {
+            "Alimento": ["Arroz Branco", "Feijão Carioca", "Pão Francês", "Peito de Frango", "Ovo Cozido"],
+            "Carboidratos": [28.0, 14.0, 25.0, 0.0, 0.6],
+            "Proteínas": [2.5, 5.0, 4.0, 31.0, 6.3],
+            "Gorduras": [0.2, 0.5, 1.5, 3.6, 5.3],
+            "Unidade": ["Escumadeira", "Concha", "Unidade", "100g", "Unidade"]
+        }
+        df_a = pd.DataFrame(dados_sbd)
+        df_a.to_csv("alimentos.csv", index=False)
 
-    df_a = pd.read_csv("alimentos.csv") if os.path.exists("alimentos.csv") else pd.DataFrame(columns=["Alimento", "Carboidratos", "Proteínas", "Gorduras", "Unidade"])
+    # Pacientes
     df_p = pd.read_csv("pacientes.csv") if os.path.exists("pacientes.csv") else pd.DataFrame(columns=["Nome", "Parentesco", "CPF", "Sangue"])
+    
+    # Histórico (Glicemia)
+    df_h = pd.read_csv("dados_glicemia.csv") if os.path.exists("dados_glicemia.csv") else pd.DataFrame(columns=["Data", "Paciente", "Glicemia_Pre", "Carboidratos", "Proteínas", "Gorduras", "Dose", "Momento", "Glicemia_Pos"])
     
     return df_a, df_h, df_p
 
-# --- 3. FUNÇÃO DO PDF CORRIGIDA ---
-def gerar_pdf_completo(df_hist):
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Relatorio Glicemia Para Todos", ln=True, align='C')
-    pdf.ln(10)
-    
-    # Cabeçalho
-    pdf.set_font("Arial", "B", 10)
-    pdf.set_fill_color(200, 200, 200)
-    cols = ["Data", "Paciente", "Glicemia Pre", "Carbo", "Prot", "Gord", "Dose", "Glicemia Pos"]
-    larguras = [35, 45, 30, 25, 25, 25, 25, 30]
-    for i, col in enumerate(cols):
-        pdf.cell(larguras[i], 10, col, 1, 0, 'C', True)
-    pdf.ln()
-    
-    pdf.set_font("Arial", "", 9)
-    for _, r in df_hist.iterrows():
-        # Usamos .get() ou nomes seguros para evitar o erro se a coluna sumir
-        g_pre = r.get('Glicemia_Pré', r.get('Glicemia_Pre', 0))
-        g_pos = r.get('Glicemia_Pós', r.get('Glicemia_Pos', 0))
-        
-        pdf.cell(35, 8, str(r['Data']), 1)
-        pdf.cell(45, 8, str(r['Paciente']), 1)
-        pdf.cell(30, 8, f"{g_pre} mg/dL", 1, 0, 'C')
-        pdf.cell(25, 8, f"{r.get('Carboidratos', 0)}g", 1, 0, 'C')
-        pdf.cell(25, 8, f"{r.get('Proteínas', 0)}g", 1, 0, 'C')
-        pdf.cell(25, 8, f"{r.get('Gorduras', 0)}g", 1, 0, 'C')
-        pdf.cell(25, 8, f"{r['Dose']} U", 1, 0, 'C')
-        pdf.cell(30, 8, f"{g_pos} mg/dL", 1, 1, 'C')
-    return bytes(pdf.output())
+df_alimentos, df_historico, df_pacientes = carregar_dados()
 
-df_alimentos, df_historico, df_pacientes = iniciar_banco_dados()
-
-# --- 4. INTERFACE (MANTENDO AS ABAS RESTAURADAS) ---
+# --- 3. INTERFACE LATERAL ---
 with st.sidebar:
     st.title("🛡️ Glicemia Para Todos")
-    aba = st.radio("Menu", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos"])
+    aba = st.radio("Navegação", ["🏠 Início", "👥 Pacientes", "📌 Pendentes", "📊 Histórico", "🍎 Alimentos"])
 
+# --- ABA INÍCIO ---
 if aba == "🏠 Início":
     st.header("🍽️ Registrar Refeição")
     if df_pacientes.empty:
-        st.warning("Cadastre um paciente primeiro.")
+        st.info("Por favor, cadastre um paciente na aba 'Pacientes'.")
     else:
         c1, c2, c3 = st.columns(3)
         with c1: pac = st.selectbox("Paciente", df_pacientes["Nome"].tolist())
@@ -88,15 +55,13 @@ if aba == "🏠 Início":
         st.divider()
         ca, cq = st.columns([3, 1])
         with ca:
-            if not df_alimentos.empty:
-                ali_sel = st.selectbox("Buscar Alimento", df_alimentos["Alimento"].tolist())
-                inf = df_alimentos.loc[df_alimentos["Alimento"] == ali_sel].iloc[0]
-            else: st.error("Tabela de alimentos vazia.")
-        with cq: qtd = st.number_input(f"Qtd", min_value=0.1, value=1.0)
+            ali = st.selectbox("Selecionar Alimento", df_alimentos["Alimento"].tolist())
+            inf = df_alimentos.loc[df_alimentos["Alimento"] == ali].iloc[0]
+        with cq: qtd = st.number_input(f"Qtd ({inf['Unidade']})", min_value=0.1, value=1.0)
         
-        if st.button("➕ Adicionar"):
+        if st.button("➕ Adicionar ao Prato"):
             st.session_state.sacola_refeicao.append({
-                "Alimento": ali_sel, "Quantidade": qtd, "Unidade": inf["Unidade"],
+                "Alimento": ali, "Qtd": qtd, "Unidade": inf["Unidade"],
                 "Carboidratos": round(float(inf["Carboidratos"]) * qtd, 1),
                 "Proteínas": round(float(inf["Proteínas"]) * qtd, 1),
                 "Gorduras": round(float(inf["Gorduras"]) * qtd, 1)
@@ -104,61 +69,63 @@ if aba == "🏠 Início":
             st.rerun()
 
         if st.session_state.sacola_refeicao:
-            total_c = sum(i["Carboidratos"] for i in st.session_state.sacola_refeicao)
-            total_p = sum(i["Proteínas"] for i in st.session_state.sacola_refeicao)
-            total_g = sum(i["Gorduras"] for i in st.session_state.sacola_refeicao)
+            tc = sum(i["Carboidratos"] for i in st.session_state.sacola_refeicao)
+            tp = sum(i["Proteínas"] for i in st.session_state.sacola_refeicao)
+            tg = sum(i["Gorduras"] for i in st.session_state.sacola_refeicao)
             
-            st.subheader("📊 Totais")
-            t1, t2, t3 = st.columns(3)
-            t1.metric("Carboidratos", f"{round(total_c, 1)}g")
-            t2.metric("Proteínas", f"{round(total_p, 1)}g")
-            t3.metric("Gorduras", f"{round(total_g, 1)}g")
+            st.subheader("Resumo")
+            for idx, item in enumerate(st.session_state.sacola_refeicao):
+                st.write(f"✅ {item['Alimento']} ({item['Qtd']} {item['Unidade']})")
+            
+            st.write(f"**Totais:** Carboidratos: {tc}g | Proteínas: {tp}g | Gorduras: {tg}g")
 
-            if st.button("💉 Salvar Registro"):
-                dose = round(max(0, (gpre - 100)/50) + (total_c / 15), 1)
-                novo_r = pd.DataFrame([{
-                    "Data": datetime.now().strftime("%d/%m/%Y %H:%M"), "Paciente": pac,
-                    "Glicemia_Pré": gpre, "Carboidratos": total_c, "Proteínas": total_p, "Gorduras": total_g,
-                    "Dose": dose, "Momento": mom, "Glicemia_Pós": 0
-                }])
-                df_historico = pd.concat([df_historico, novo_r], ignore_index=True)
-                df_historico.to_csv("dados_glicemia.csv", index=False)
+            if st.button("💉 Salvar e Calcular Insulina"):
+                dose = round(max(0, (gpre - 100)/50) + (tc / 15), 1)
+                novo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y %H:%M"), "Paciente": pac, "Glicemia_Pre": gpre, "Carboidratos": tc, "Proteínas": tp, "Gorduras": tg, "Dose": dose, "Momento": mom, "Glicemia_Pos": 0}])
+                df_h = pd.concat([df_historico, novo], ignore_index=True)
+                df_h.to_csv("dados_glicemia.csv", index=False)
                 st.session_state.sacola_refeicao = []
-                st.success(f"Salvo! Dose: {dose} U"); st.rerun()
+                st.success(f"Dose sugerida: {dose} U")
+                st.rerun()
 
-elif aba == "📊 Histórico":
-    st.header("📊 Histórico")
-    if not df_historico.empty:
-        df_edit = df_historico.copy()
-        df_edit.insert(0, "Selecionar", False)
-        ed = st.data_editor(df_edit, hide_index=True, use_container_width=True)
-        sel = ed[ed["Selecionar"] == True]
-        if not sel.empty:
-            pdf = gerar_pdf_completo(sel)
-            st.download_button("📥 Baixar PDF", pdf, "Historico.pdf", "application/pdf")
-    else: st.info("Histórico vazio.")
-
+# --- ABA PACIENTES ---
 elif aba == "👥 Pacientes":
-    st.header("👥 Pacientes")
-    with st.form("p_form", clear_on_submit=True):
-        n = st.text_input("Nome"); p = st.selectbox("Vínculo", ["Filha", "Filho", "Cônjuge", "Outro"])
-        c = st.text_input("CPF"); s = st.selectbox("Sangue", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"])
-        if st.form_submit_button("Salvar"):
-            new_p = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": c, "Sangue": s}])
-            df_p = pd.concat([df_pacientes, new_p], ignore_index=True); df_p.to_csv("pacientes.csv", index=False); st.rerun()
-    st.table(df_pacientes)
+    st.header("👥 Cadastro de Pacientes")
+    with st.form("f_pac"):
+        n = st.text_input("Nome")
+        p = st.selectbox("Vínculo", ["Filha", "Cônjuge", "Outro"])
+        if st.form_submit_button("Salvar Paciente"):
+            new_p = pd.DataFrame([{"Nome": n, "Parentesco": p, "CPF": "", "Sangue": ""}])
+            df_p = pd.concat([df_pacientes, new_p], ignore_index=True)
+            df_p.to_csv("pacientes.csv", index=False)
+            st.rerun()
+    st.dataframe(df_pacientes, use_container_width=True)
 
+# --- ABA PENDENTES ---
 elif aba == "📌 Pendentes":
-    st.header("📌 Glicemia Pós-Prandial")
-    # Filtra onde Glicemia_Pós é 0 ou Nulo
-    pend = df_historico[df_historico["Glicemia_Pós"].astype(float) == 0]
-    for idx, row in pend.iterrows():
-        with st.expander(f"{row['Paciente']} - {row['Momento']}"):
-            val = st.number_input("Valor Pós", key=f"p_{idx}")
-            if st.button("Confirmar", key=f"b_{idx}"):
-                df_historico.at[idx, "Glicemia_Pós"] = val
-                df_historico.to_csv("dados_glicemia.csv", index=False); st.rerun()
+    st.header("📌 Glicemias Pós-Prandial")
+    pendentes = df_historico[df_historico["Glicemia_Pos"] == 0]
+    if pendentes.empty:
+        st.success("Tudo em dia!")
+    else:
+        for idx, row in pendentes.iterrows():
+            with st.expander(f"{row['Paciente']} - {row['Momento']}"):
+                v = st.number_input("Valor Medido", key=f"v_{idx}")
+                if st.button("Salvar Pós", key=f"b_{idx}"):
+                    df_historico.at[idx, "Glicemia_Pos"] = v
+                    df_historico.to_csv("dados_glicemia.csv", index=False)
+                    st.rerun()
 
+# --- ABA HISTÓRICO ---
+elif aba == "📊 Histórico":
+    st.header("📊 Histórico de Registros")
+    st.dataframe(df_historico, use_container_width=True)
+    if st.button("Limpar Histórico (CUIDADO)"):
+        if os.path.exists("dados_glicemia.csv"):
+            os.remove("dados_glicemia.csv")
+            st.rerun()
+
+# --- ABA ALIMENTOS ---
 elif aba == "🍎 Alimentos":
-    st.header("🍎 Alimentos")
+    st.header("🍎 Banco de Alimentos")
     st.dataframe(df_alimentos, use_container_width=True)
